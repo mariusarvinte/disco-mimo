@@ -1,5 +1,5 @@
 def main():
-    print("Hello from disco-mimo!")
+    print("Hello from mimo!")
 
 
 if __name__ == "__main__":
