@@ -1,6 +1,13 @@
 import torch
 
 
+def add_noise_to_data(data: torch.Tensor, stddev: torch.Tensor) -> torch.Tensor:
+    noise = stddev[..., None, None] * torch.randn_like(data)
+    noisy_data = data + noise
+
+    return noisy_data, noise
+
+
 def score_training_loss(
     model_pred: torch.Tensor, noise: torch.Tensor, coefficient: torch.Tensor
 ) -> torch.Tensor:
