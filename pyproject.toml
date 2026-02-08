@@ -5,16 +5,29 @@ description = "Diffusion and score-based MIMO channel estimation"
 readme = "README.md"
 requires-python = "~=3.13.0"
 
-dependencies = []
-
-[build-system]
-requires = ["uv_build>=0.9.28,<0.10.0"]
-build-backend = "uv_build"
+dependencies = [
+    "numpy==2.4.2",
+    "torch==2.10.0",
+]
 
 [dependency-groups]
 dev = [
     "pre-commit>=4.5.1",
 ]
 
+[tool.uv.sources]
+torch = [
+  { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+]
+
+[[tool.uv.index]]
+name = "pytorch-cu128"
+url = "https://download.pytorch.org/whl/cu128"
+explicit = true
+
 [tool.ruff]
 line-length = 96
+
+[build-system]
+requires = ["uv_build>=0.9.28,<0.10.0"]
+build-backend = "uv_build"
