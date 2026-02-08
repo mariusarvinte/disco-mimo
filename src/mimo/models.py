@@ -13,7 +13,7 @@ class UNetConfig:
 
     block_out_channels: tuple[int] = (16, 32, 48, 64)
     norm_num_groups: int = 16
-    layers_per_block: int = 2
+    layers_per_block: int = 8
 
 
 def get_model(cfg_model: UNetConfig, cfg_data: DataConfig) -> UNet2DModel:

@@ -14,7 +14,7 @@ from mimo.losses import score_training_loss
 
 @dataclass
 class TrainConfig:
-    lr: float = 0.003
+    lr: float = 0.0003
 
     batch_size: int = 16
     num_steps: int = 1000
@@ -38,8 +38,10 @@ def main(cfg_train: TrainConfig, cfg_model: UNetConfig, cfg_data: DataConfig):
 
     # Training loop
     for step in range(cfg_train.num_steps):
-        batch = next(iter(dataloader)).to(cfg_model.device)
-        stddev = torch.rand(batch.shape[0], device=batch.device)
+        # TODO: Write this cleanly
+        batch = next(iter(dataloader))[0]
+        batch = batch.to(cfg_model.device)
+        stddev = torch.rand(len(batch), device=batch.device)
 
         # Run some noisy data through the model and get the loss function
         batch_noisy, noise = add_noise_to_data(batch, stddev)
