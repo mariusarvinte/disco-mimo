@@ -1,5 +1,8 @@
-import torch
+from dataclasses import dataclass
 
+import torch
+from torch.optim import Adam
+from torch.utils.data import DataLoader, TensorDataset
 
 from mimo.models import UNetConfig, get_model
 from mimo.data import DataConfig, get_data
@@ -9,38 +12,60 @@ from mimo.losses import add_noise_to_data
 from mimo.losses import score_training_loss
 
 
-def main():
-    cfg_model = UNetConfig()
-    cfg_data = DataConfig()
-    model = get_model(cfg_model, cfg_data).to(cfg_model.device)
+@dataclass
+class TrainConfig:
+    lr: float = 0.003
 
-    # Display number of model weights
+    batch_size: int = 16
+    num_steps: int = 1000
+
+    loss_verbose: int = 50
+
+
+def main(cfg_train: TrainConfig, cfg_model: UNetConfig, cfg_data: DataConfig):
+    # Instantiate model
+    model = get_model(cfg_model, cfg_data).to(cfg_model.device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model has {total_params} weights!")
 
-    # Get clean data
+    # Instantiate optimizer
+    optimizer = Adam(model.parameters(), lr=cfg_train.lr)
+
+    # Get clean dataset
     data = get_data(cfg_data)
+    dataset = TensorDataset(data)
+    dataloader = DataLoader(dataset, batch_size=cfg_train.batch_size, shuffle=True)
 
-    # Run some noisy data through the model and get the loss function
-    data_subset = data[:10].to(cfg_model.device)
-    stddev = torch.rand(data_subset.shape[0], device=data_subset.device)
-    data_subset_noisy, noise = add_noise_to_data(data_subset, stddev)
-    data_subset_real = complex_to_real(data_subset_noisy)
+    # Training loop
+    for step in range(cfg_train.num_steps):
+        batch = next(iter(dataloader)).to(cfg_model.device)
+        stddev = torch.rand(batch.shape[0], device=batch.device)
 
-    # Pass through model
-    outputs = model(sample=data_subset_real, timestep=1)
-    output = outputs["sample"]
+        # Run some noisy data through the model and get the loss function
+        batch_noisy, noise = add_noise_to_data(batch, stddev)
+        batch_noisy = complex_to_real(batch_noisy)
 
-    # Post-process output back to complex values
-    output = real_to_complex(output)
+        # Pass through model
+        outputs = model(sample=batch_noisy, timestep=1)
+        output = outputs["sample"]
 
-    # Compute the loss function
-    loss = score_training_loss(output, noise, stddev.square())
+        # Post-process output back to complex values
+        output = real_to_complex(output)
 
-    print(f"Input shape is {data_subset.shape} and data type is {data_subset.dtype}")
-    print(f"Output shape is {output.shape} and data type is {output.dtype}")
-    print(f"Loss function on batch is {loss.item()}")
+        # Compute the loss function
+        loss = score_training_loss(output, noise, stddev.square())
+        if step % cfg_train.loss_verbose == 0:
+            print(f"Loss function on at step {step} is {loss.item()}")
+
+        # Update the model
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
 
 
 if __name__ == "__main__":
-    main()
+    cfg_train = TrainConfig()
+    cfg_model = UNetConfig()
+    cfg_data = DataConfig()
+
+    main(cfg_train, cfg_model, cfg_data)
