@@ -3,48 +3,61 @@ from dataclasses import dataclass
 import torch
 from diffusers import UNet2DModel
 
+from mimo.data import DataConfig, get_data
+from mimo.data import complex_to_real, real_to_complex
+
 
 @dataclass
 class UNetConfig:
     device: str = "cuda"
 
-    sample_size: tuple[int] = (64, 64)
     num_channels: int = 2
 
     block_out_channels: tuple[int] = (16, 32, 48, 64)
+    norm_num_groups: int = 16
     layers_per_block: int = 2
 
 
-def get_model(cfg: UNetConfig) -> UNet2DModel:
+def get_model(cfg_model: UNetConfig, cfg_data: DataConfig) -> UNet2DModel:
     model = UNet2DModel(
-        sample_size=cfg.sample_size,
-        in_channels=cfg.num_channels,
-        out_channels=cfg.num_channels,
-        block_out_channels=cfg.block_out_channels,
-        layers_per_block=cfg.layers_per_block,
+        sample_size=cfg_data.sample_size,
+        in_channels=cfg_model.num_channels,
+        out_channels=cfg_model.num_channels,
+        block_out_channels=cfg_model.block_out_channels,
+        layers_per_block=cfg_model.layers_per_block,
+        norm_num_groups=cfg_model.norm_num_groups,
     )
 
     return model
 
 
 def main():
-    cfg = UNetConfig()
-    model = get_model(cfg).to(cfg.device)
+    cfg_model = UNetConfig()
+    cfg_data = DataConfig()
+    model = get_model(cfg_model, cfg_data).to(cfg_model.device)
 
     # Display number of model weights
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model has {total_params} weights!")
 
-    # Generate random input data of shape [B, C, H, W]
-    batch_size = 1
-    X = torch.randn(batch_size, cfg.num_channels, *cfg.sample_size, device=cfg.device)
+    # Get data
+    data = get_data(cfg_data)
 
-    # Run the data through the model
+    # Run some data through the model
     with torch.inference_mode():
-        outputs = model(sample=X, timestep=1)
-        Y = outputs["sample"]
+        # Prepare data
+        data_subset = data[:10].to(cfg_model.device)
+        data_subset_real = complex_to_real(data_subset)
 
-    print(f"Input shape is: {X.shape}\nOutput shape is: {Y.shape}")
+        # Pass through model
+        outputs = model(sample=data_subset_real, timestep=1)
+        output = outputs["sample"]
+
+        # Post-process output back to complex values
+        output = real_to_complex(output)
+
+    print(f"Input shape is {data_subset.shape} and data type is {data_subset.dtype}")
+    print(f"Output shape is {output.shape} and data type is {output.dtype}")
 
 
 if __name__ == "__main__":
