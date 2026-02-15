@@ -16,11 +16,11 @@ from sionna.phy.channel import subcarrier_frequencies, cir_to_ofdm_channel
 
 @dataclass
 class CDLConfig:
-    num_rx: int = 4
-    num_tx: int = 8
+    num_rx: int = 16
+    num_tx: int = 64
 
     cdl_model: str = "C"
-    num_samples: int = 10000
+    num_samples: int = 1000
 
     verbose: bool = False
     save_dir: Path = Path("data")
