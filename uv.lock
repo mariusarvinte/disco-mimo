@@ -589,6 +589,7 @@ dev = [
 ]
 sionna = [
     { name = "sionna-no-rt" },
+    { name = "tqdm" },
 ]
 torch = [
     { name = "diffusers", extra = ["torch"], marker = "extra == 'group-4-mimo-torch'" },
@@ -601,7 +602,10 @@ torch = [
 
 [package.metadata.requires-dev]
 dev = [{ name = "pre-commit", specifier = ">=4.5.1" }]
-sionna = [{ name = "sionna-no-rt", specifier = ">=1.2.1" }]
+sionna = [
+    { name = "sionna-no-rt", specifier = "==1.2.1" },
+    { name = "tqdm", specifier = "==4.67.3" },
+]
 torch = [
     { name = "diffusers", extras = ["torch"], specifier = "==0.36.0" },
     { name = "numpy", specifier = "==2.4.2" },

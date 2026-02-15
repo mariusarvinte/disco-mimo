@@ -19,7 +19,8 @@ torch = [
 ]
 
 sionna = [
-    "sionna-no-rt>=1.2.1",
+    "sionna-no-rt==1.2.1",
+    "tqdm==4.67.3",
 ]
 
 [tool.uv]
