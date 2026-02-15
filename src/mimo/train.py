@@ -1,4 +1,5 @@
 from dataclasses import dataclass
+from pathlib import Path
 
 import torch
 from torch.optim import Adam
@@ -68,6 +69,6 @@ def main(cfg_train: TrainConfig, cfg_model: UNetConfig, cfg_data: DataConfig):
 if __name__ == "__main__":
     cfg_train = TrainConfig()
     cfg_model = UNetConfig()
-    cfg_data = DataConfig()
+    cfg_data = DataConfig(data_dir=Path("data"), data_tag="train")
 
     main(cfg_train, cfg_model, cfg_data)

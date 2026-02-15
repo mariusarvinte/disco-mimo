@@ -1,3 +1,6 @@
+import h5py
+import numpy as np
+from pathlib import Path
 from dataclasses import dataclass
 
 import torch
@@ -7,8 +10,15 @@ import torch
 class DataConfig:
     sample_size: tuple[int] = (16, 64)
 
-    num_samples: int = 10000
-    distribution: str = "gaussian"
+    num_samples: int = 1000
+
+    distribution: str = "CDL-C"
+    data_dir: Path | None = None
+    data_tag: str | None = None
+
+    def __post_init__(self):
+        if self.distribution not in ["gaussian", "CDL-A", "CDL-B", "CDL-C", "CDL-D"]:
+            raise ValueError(f"Unsupported data distribution {self.distribution}!")
 
 
 def get_data(cfg: DataConfig) -> torch.Tensor:
@@ -18,6 +28,17 @@ def get_data(cfg: DataConfig) -> torch.Tensor:
             *cfg.sample_size,
             dtype=torch.complex64,
         )
+    elif "CDL" in cfg.distribution:
+        if cfg.data_tag is None or cfg.data_dir is None:
+            raise ValueError("A tag and folder must be specified when trying to load CDL data!")
+        filename = (
+            cfg.data_dir
+            / f"{cfg.distribution}_rx{cfg.sample_size[0]}_tx{cfg.sample_size[1]}_{cfg.data_tag}.h5"
+        )
+        with h5py.File(filename, "r") as f:
+            data = np.asarray(f["data"])
+        # Convert to tensor
+        data = torch.tensor(data, dtype=torch.complex64)
     else:
         raise NotImplementedError("Other data distributions are not yet supported!")
 
