@@ -3,6 +3,8 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+import h5py
+from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
@@ -18,6 +20,13 @@ class CDLConfig:
     num_tx: int = 8
 
     cdl_model: str = "C"
+    num_samples: int = 10000
+
+    verbose: bool = False
+    save_dir: Path = Path("data")
+    save_tag: str = "train"
+
+    max_chunk_product: int = 10000
 
 
 def plot_tensor_grid(
@@ -106,7 +115,7 @@ def main(cfg: CDLConfig):
     # about how to choose this value.
     direction = "downlink"
     cdl_model = cfg.cdl_model
-    speed = 100  # UT speed [m/s]
+    speed = 10  # UT speed [m/s]
 
     # Configure a channel impulse reponse (CIR) generator for the CDL model.
     # cdl() will generate CIRs that can be converted to discrete time or discrete frequency.
@@ -119,21 +128,46 @@ def main(cfg: CDLConfig):
         direction,
         min_speed=speed,
     )
-    gains, tau = cdl(
-        batch_size=32,
-        num_time_steps=rg.num_ofdm_symbols,
-        sampling_frequency=1 / rg.ofdm_symbol_duration,
-    )
-    print("Shape of the path gains: ", gains.shape)
-    print("Shape of the delays:", tau.shape)
 
-    frequencies = subcarrier_frequencies(rg.fft_size, rg.subcarrier_spacing)
-    h_freq = cir_to_ofdm_channel(frequencies, gains, tau, normalize=True)
-    h_freq = tf.squeeze(h_freq)
-    print("Shape of the frequency-domain channel", h_freq.shape)
+    # Chunk the channel generation process
+    dataset = np.zeros((cfg.num_samples, cfg.num_rx, cfg.num_tx), dtype=np.complex128)
+    if (size_prod := cfg.num_rx * cfg.num_tx) > cfg.max_chunk_product:
+        print(
+            f"Warning: the array sizes {cfg.num_rx, cfg.num_tx = } are larger than the chunk size, which may lead to OOM errors!"
+        )
+    chunk_size = cfg.max_chunk_product // size_prod
+    num_chunks = int(np.ceil(cfg.num_samples / chunk_size))
+    for i in tqdm(range(num_chunks)):
+        samples_in_chunk = min((i + 1) * chunk_size, cfg.num_samples) - i * chunk_size
+        gains, tau = cdl(
+            batch_size=samples_in_chunk,
+            num_time_steps=rg.num_ofdm_symbols,
+            sampling_frequency=1 / rg.ofdm_symbol_duration,
+        )
+        # Move to frequency domain
+        frequencies = subcarrier_frequencies(rg.fft_size, rg.subcarrier_spacing)
+        h_freq = cir_to_ofdm_channel(frequencies, gains, tau, normalize=True)
+        h_freq = tf.squeeze(h_freq).numpy()
+
+        # Subsample data at random in the time-frequency grid
+        random_times = np.random.randint(0, h_freq.shape[-2], size=samples_in_chunk)
+        random_freqs = np.random.randint(0, h_freq.shape[-1], size=samples_in_chunk)
+        dataset[i * chunk_size : i * chunk_size + samples_in_chunk, ...] = h_freq[
+            range(samples_in_chunk), ..., random_times, random_freqs
+        ]
+
+    # Save dataset to disk
+    os.makedirs(cfg.save_dir, exist_ok=True)
+    filename = f"CDL-{cfg.cdl_model}_rx{cfg.num_rx}_tx{cfg.num_tx}_{cfg.save_tag}.h5"
+    with h5py.File(cfg.save_dir / filename, "w") as f:
+        f.create_dataset("data", data=dataset)
 
     # Visualize gain matrix in the time-delay domain
-    plot_tensor_grid(tf.abs(h_freq[0, :, :, :, ::8]).numpy())
+    if cfg.verbose:
+        print("Shape of the path gains: ", gains.shape)
+        print("Shape of the delays:", tau.shape)
+        print("Shape of the frequency-domain channel", h_freq.shape)
+        plot_tensor_grid(np.abs(h_freq[0, :, :, :, ::8]))
 
 
 if __name__ == "__main__":
