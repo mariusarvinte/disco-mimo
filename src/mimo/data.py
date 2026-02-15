@@ -18,6 +18,8 @@ def get_data(cfg: DataConfig) -> torch.Tensor:
             *cfg.sample_size,
             dtype=torch.complex64,
         )
+    elif cfg.distribution == "cdl":
+        ...
     else:
         raise NotImplementedError("Other data distributions are not yet supported!")
 
