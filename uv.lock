@@ -317,7 +317,8 @@ name = "h5py"
 version = "3.15.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" } },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-4-mimo-sionna'" },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-4-mimo-torch'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/4d/6a/0d79de0b025aa85dc8864de8e97659c94cf3d23148394a954dc5ca52f8c8/h5py-3.15.1.tar.gz", hash = "sha256:c86e3ed45c4473564de55aa83b6fc9e5ead86578773dfbd93047380042e26b69", size = 426236, upload-time = "2025-10-16T10:35:27.404Z" }
 wheels = [
@@ -593,6 +594,7 @@ sionna = [
 ]
 torch = [
     { name = "diffusers", extra = ["torch"], marker = "extra == 'group-4-mimo-torch'" },
+    { name = "h5py" },
     { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" } },
     { name = "torch", version = "2.10.0", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-4-mimo-torch') or (sys_platform == 'linux' and extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch') or (sys_platform == 'win32' and extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch')" },
     { name = "torch", version = "2.10.0+cu128", source = { registry = "https://download.pytorch.org/whl/cu128" }, marker = "(sys_platform == 'linux' and extra == 'group-4-mimo-torch') or (sys_platform == 'win32' and extra == 'group-4-mimo-torch') or (extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch')" },
@@ -608,6 +610,7 @@ sionna = [
 ]
 torch = [
     { name = "diffusers", extras = ["torch"], specifier = "==0.36.0" },
+    { name = "h5py", specifier = "==3.15.1" },
     { name = "numpy", specifier = "==2.4.2" },
     { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "==2.10.0" },
     { name = "torch", marker = "sys_platform == 'linux' or sys_platform == 'win32'", specifier = "==2.10.0", index = "https://download.pytorch.org/whl/cu128" },
