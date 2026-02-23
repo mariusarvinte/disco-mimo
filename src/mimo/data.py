@@ -9,7 +9,7 @@ import torch
 @dataclass
 class DataConfig:
     sample_size: tuple[int] = (16, 64)
-    undersampling: float = 0.5  # (64, 32) -> (16, 32) measurement
+    undersampling: float = 1.0  # (64, 64) -> (16, 64) measurement
     measurement_noise_std: float = 0.01
 
     num_samples: int = 1000

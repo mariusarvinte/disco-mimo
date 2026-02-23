@@ -70,7 +70,7 @@ def main(
     # Training loop
     for step in range(cfg_train.num_steps):
         batch = next(iter(train_dataloader))[0]
-        batch = batch.to(cfg_model.device)
+        batch = batch.to(model.device)
 
         # Pick noise levels uniformly at random
         stddev_idx = torch.multinomial(
@@ -92,7 +92,7 @@ def main(
         # Compute the loss function
         loss = score_training_loss(output, noise, stddev.square())
         if step % cfg_train.loss_verbose == 0:
-            print(f"Loss function on at step {step} is {loss.item()}")
+            print(f"Loss function at step {step} is {loss.item()}")
 
         # Update the model
         optimizer.zero_grad()
@@ -102,6 +102,10 @@ def main(
         # Validate and sample from the model
         if (step + 1) % cfg_train.sampling_verbose == 0:
             with torch.inference_mode():
+                # Get a batch of validation samples
+                val_samples = next(iter(val_dataloader))[0]
+                val_samples = val_samples.to(model.device)
+
                 # Unconditional
                 init = torch.randn(
                     (cfg_train.val_batch_size, *cfg_data_train.sample_size),
@@ -116,9 +120,12 @@ def main(
                 )
                 synthetic_samples = real_to_complex(synthetic_samples)
                 # Plot the synthetic data
-                plt.figure(figsize=(10, 10))
+                plt.figure()
                 for i in range(cfg_train.val_batch_size):
-                    plt.subplot(1, cfg_train.val_batch_size, i + 1)
+                    plt.subplot(2, cfg_train.val_batch_size, i + 1)
+                    plt.imshow(val_samples[i].abs().cpu().numpy())
+                    plt.axis("off")
+                    plt.subplot(2, cfg_train.val_batch_size, i + 1 + cfg_train.val_batch_size)
                     plt.imshow(synthetic_samples[i].abs().cpu().numpy())
                     plt.axis("off")
                 plt.tight_layout()
@@ -129,8 +136,6 @@ def main(
                 )
                 plt.close()
 
-                # Get a batch of validation samples
-                val_samples = next(iter(val_dataloader))[0]
                 # Conditional
                 pilots_real = torch.randn(
                     val_samples.shape[0],
@@ -166,7 +171,7 @@ def main(
                         torch.square(torch.abs(recon_samples - val_samples)), dim=(-1, -2)
                     )
                     print(f"Validation step {step}, MSE {recon_mse.cpu().numpy()}")
-                    plt.figure(figsize=(10, 10))
+                    plt.figure()
                     for i in range(cfg_train.val_batch_size):
                         plt.subplot(1, cfg_train.val_batch_size, i + 1)
                         plt.imshow(recon_samples[i].abs().cpu().numpy())
