@@ -135,7 +135,8 @@ name = "contourpy"
 version = "1.3.3"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" } },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-4-mimo-sionna'" },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-4-mimo-torch' or extra != 'group-4-mimo-sionna'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/58/01/1253e6698a07380cd31a736d248a3f2a50a7c88779a1813da27503cadc2a/contourpy-1.3.3.tar.gz", hash = "sha256:083e12155b210502d0bca491432bb04d56dc3432f95a979b429f2848c3dbe880", size = 13466174, upload-time = "2025-07-26T12:03:12.549Z" }
 wheels = [
@@ -553,7 +554,8 @@ dependencies = [
     { name = "cycler" },
     { name = "fonttools" },
     { name = "kiwisolver" },
-    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" } },
+    { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-4-mimo-sionna'" },
+    { name = "numpy", version = "2.4.2", source = { registry = "https://pypi.org/simple" }, marker = "extra == 'group-4-mimo-torch' or extra != 'group-4-mimo-sionna'" },
     { name = "packaging" },
     { name = "pillow" },
     { name = "pyparsing" },
@@ -583,12 +585,16 @@ wheels = [
 name = "mimo"
 version = "0.1.0"
 source = { editable = "." }
+dependencies = [
+    { name = "matplotlib" },
+]
 
 [package.dev-dependencies]
 dev = [
     { name = "pre-commit" },
 ]
 sionna = [
+    { name = "matplotlib" },
     { name = "sionna-no-rt" },
     { name = "tqdm" },
 ]
@@ -601,10 +607,12 @@ torch = [
 ]
 
 [package.metadata]
+requires-dist = [{ name = "matplotlib", specifier = "==3.10.8" }]
 
 [package.metadata.requires-dev]
 dev = [{ name = "pre-commit", specifier = ">=4.5.1" }]
 sionna = [
+    { name = "matplotlib", specifier = ">=3.10.8" },
     { name = "sionna-no-rt", specifier = "==1.2.1" },
     { name = "tqdm", specifier = "==4.67.3" },
 ]
@@ -689,8 +697,9 @@ name = "numpy"
 version = "2.4.2"
 source = { registry = "https://pypi.org/simple" }
 resolution-markers = [
-    "sys_platform == 'linux' or sys_platform == 'win32'",
-    "sys_platform != 'linux' and sys_platform != 'win32'",
+    "(sys_platform == 'linux' and extra != 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch') or (sys_platform == 'win32' and extra != 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch')",
+    "sys_platform != 'linux' and sys_platform != 'win32' and extra != 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch'",
+    "extra != 'group-4-mimo-sionna' and extra != 'group-4-mimo-torch'",
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/57/fd/0005efbd0af48e55eb3c7208af93f2862d4b1a56cd78e84309a2d959208d/numpy-2.4.2.tar.gz", hash = "sha256:659a6107e31a83c4e33f763942275fd278b21d095094044eb35569e86a21ddae", size = 20723651, upload-time = "2026-01-31T23:13:10.135Z" }
 wheels = [

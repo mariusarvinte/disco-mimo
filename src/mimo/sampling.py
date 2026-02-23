@@ -61,4 +61,9 @@ def sample_from_model(
 
                 current = current - step_size * complex_to_real(conditional)
 
+        # Early exit if we encounter NaN
+        if current.isnan().any():
+            print("WARNING: Sampling exited early because of NaN values!")
+            return current
+
     return current
