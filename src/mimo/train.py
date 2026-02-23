@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch.optim import Adam
 from torch.utils.data import DataLoader, TensorDataset
@@ -12,7 +13,7 @@ from mimo.data import complex_to_real, real_to_complex
 from mimo.losses import add_noise_to_data
 from mimo.losses import score_training_loss
 
-from mimo.sampling import SamplingConfig, sample_unconditional
+from mimo.sampling import SamplingConfig, sample_from_model
 
 
 @dataclass
@@ -94,11 +95,41 @@ def main(
                     dtype=torch.complex64,
                     device=model.device,
                 )
-                val_samples = sample_unconditional(
+                # Unconditional
+                # val_samples = sample_from_model(
+                #     model,
+                #     complex_to_real(init),
+                #     cfg_sampling,
+                #     noise_levels,
+                # )
+                # val_samples = real_to_complex(val_samples)
+                # TODO: Plot the samples
+
+                # Conditional
+                pilots_real = torch.randn(
+                    init.shape[0],
+                    init.shape[-1],
+                    int(init.shape[-1] * cfg_data.undersampling),
+                    device=model.device,
+                ).sign()
+                pilots_imag = torch.randn(
+                    init.shape[0],
+                    init.shape[-1],
+                    int(init.shape[-1] * cfg_data.undersampling),
+                    device=model.device,
+                ).sign()
+                pilots = 1 / np.sqrt(2) * (pilots_real + 1j * pilots_imag)
+                clean_y = torch.matmul(init, pilots)
+                noisy_y = clean_y + cfg_data.measurement_noise_std * torch.randn_like(clean_y)
+
+                val_samples = sample_from_model(
                     model,
                     complex_to_real(init),
                     cfg_sampling,
                     noise_levels,
+                    noisy_y,
+                    pilots,
+                    cfg_data.measurement_noise_std,
                 )
                 val_samples = real_to_complex(val_samples)
 
