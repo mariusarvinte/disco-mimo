@@ -23,7 +23,7 @@ from mimo.sampling import SamplingConfig, sample_from_model
 class TrainConfig:
     lr: float = 0.0003
 
-    batch_size: int = 16
+    batch_size: int = 128
     num_steps: int = 1000
 
     max_noise_level: float = 10.0
@@ -150,6 +150,7 @@ def main(
                     device=model.device,
                 ).sign()
                 pilots = 1 / np.sqrt(2) * (pilots_real + 1j * pilots_imag)
+                # FIXME: Preserve unit energy
                 clean_y = torch.matmul(val_samples, pilots)
                 noisy_y = clean_y + cfg_data_val.measurement_noise_std * torch.randn_like(
                     clean_y
