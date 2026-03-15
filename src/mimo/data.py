@@ -47,6 +47,25 @@ def get_data(cfg: DataConfig) -> torch.Tensor:
     return data
 
 
+def generate_measurements(samples: torch.Tensor, undersampling: float, noise_std: float):
+    pilots_real = torch.randn(
+        samples.shape[0],
+        samples.shape[-1],
+        int(samples.shape[-1] * undersampling),
+        device=samples.device,
+    ).sign()
+    pilots_imag = torch.randn(
+        samples.shape[0],
+        samples.shape[-1],
+        int(samples.shape[-1] * undersampling),
+        device=samples.device,
+    ).sign()
+    pilots = 1 / np.sqrt(2) * (pilots_real + 1j * pilots_imag)
+    clean_y = 1 / np.sqrt(samples.shape[-1]) * torch.matmul(samples, pilots)
+    noisy_y = clean_y + noise_std * torch.randn_like(clean_y)
+    return noisy_y, pilots
+
+
 def complex_to_real(data: torch.Tensor) -> torch.Tensor:
     output = torch.view_as_real(data)
     output = torch.moveaxis(output, -1, 1)
