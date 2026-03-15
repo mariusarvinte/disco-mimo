@@ -23,17 +23,17 @@ class TrainConfig:
     lr: float = 0.0003
 
     batch_size: int = 128
-    num_steps: int = 1000
+    num_steps: int = 10000
 
     max_noise_level: float = 10.0
     num_noise_levels: int = 1000
-    r: float = 0.99
+    r: float = 0.9933
 
     loss_verbose: int = 50
     val_batch_size: int = 4
     sample_unconditional: bool = True
     sample_conditional: bool = True
-    sampling_verbose: int = 10
+    sampling_verbose: int = 100000
     sampling_batch: int = 4
 
     save_dir: Path = Path("models")
@@ -47,14 +47,13 @@ def main(
     cfg_data_val: DataConfig,
 ):
     # Instantiate model
-    model = get_model(cfg_model, cfg_data_train).to(cfg_model.device)
+    noise_levels = torch.tensor(cfg_train.max_noise_level) * torch.tensor(
+        cfg_train.r
+    ) ** torch.arange(cfg_train.num_noise_levels).to(cfg_model.device)
+    model = get_model(cfg_model, cfg_data_train, noise_levels).to(cfg_model.device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model has {total_params} weights!")
     os.makedirs(cfg_train.save_dir, exist_ok=True)
-
-    noise_levels = torch.tensor(cfg_train.max_noise_level) * torch.tensor(
-        cfg_train.r
-    ) ** torch.arange(cfg_train.num_noise_levels).to(model.device)
 
     # Instantiate optimizer
     optimizer = Adam(model.parameters(), lr=cfg_train.lr)
@@ -83,8 +82,7 @@ def main(
         batch_noisy = complex_to_real(batch_noisy)
 
         # Pass through model
-        outputs = model(sample=batch_noisy, timestep=1)
-        output = outputs["sample"]
+        output = model(sample=batch_noisy, timestep=stddev_idx)
         output = real_to_complex(output)
 
         # Compute the loss function

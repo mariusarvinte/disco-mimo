@@ -29,13 +29,12 @@ def sample_from_model(
     pilots: torch.Tensor | None = None,
     measurement_noise_std: float | None = None,
 ) -> torch.Tensor:
-    # Initialize process
+    # Initialize process directly with real-valued signals
     current = noise_levels[0] * torch.randn(
-        (batch_size, *sample_size),
-        dtype=torch.complex64,
+        (batch_size, 2, *sample_size),
+        dtype=torch.float32,
         device=model.device,
     )
-    current = complex_to_real(current)
 
     # Check if there's a mismatch between number of outer steps and noise levels
     if config.num_steps_outer != len(noise_levels):
@@ -50,7 +49,6 @@ def sample_from_model(
         for _ in range(config.num_steps_inner):
             # Predict with diffusion model
             output = model(current, timestep=1)
-            output = output["sample"]
             noise = torch.randn_like(output)
 
             # Apply unconditional update equation
