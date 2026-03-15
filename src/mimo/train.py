@@ -32,7 +32,9 @@ class TrainConfig:
 
     loss_verbose: int = 50
     val_batch_size: int = 4
-    sampling_verbose: int = 500
+    sample_unconditional: bool = False
+    sample_conditional: bool = True
+    sampling_verbose: int = 50
     sampling_batch: int = 4
 
     save_dir: Path = Path("models")
@@ -69,6 +71,7 @@ def main(
 
     # Training loop
     for step in range(cfg_train.num_steps):
+        model.train()
         batch = next(iter(train_dataloader))[0]
         batch = batch.to(model.device)
 
@@ -101,26 +104,34 @@ def main(
 
         # Validate and sample from the model
         if (step + 1) % cfg_train.sampling_verbose == 0:
+            model.eval()
             with torch.inference_mode():
                 # Get a batch of validation samples
                 val_samples = next(iter(val_dataloader))[0]
                 val_samples = val_samples.to(model.device)
 
                 # Unconditional
-                init = torch.randn(
+                init = noise_levels[0] * torch.randn(
                     (cfg_train.val_batch_size, *cfg_data_train.sample_size),
                     dtype=torch.complex64,
                     device=model.device,
                 )
-                synthetic_samples = sample_from_model(
-                    model,
-                    complex_to_real(init),
-                    cfg_sampling,
-                    noise_levels,
+                synthetic_samples = (
+                    sample_from_model(
+                        model,
+                        complex_to_real(init),
+                        cfg_sampling,
+                        noise_levels,
+                    )
+                    if cfg_train.sample_unconditional
+                    else complex_to_real(init)
                 )
                 synthetic_samples = real_to_complex(synthetic_samples)
                 # Plot the synthetic data
-                plt.figure()
+                plot_ratio = (cfg_train.val_batch_size * cfg_data_train.sample_size[1]) / (
+                    2 * cfg_data_train.sample_size[0]
+                )
+                plt.figure(figsize=(4 * plot_ratio, 4))
                 for i in range(cfg_train.val_batch_size):
                     plt.subplot(2, cfg_train.val_batch_size, i + 1)
                     plt.imshow(val_samples[i].abs().cpu().numpy())
@@ -150,47 +161,56 @@ def main(
                     device=model.device,
                 ).sign()
                 pilots = 1 / np.sqrt(2) * (pilots_real + 1j * pilots_imag)
-                # FIXME: Preserve unit energy
-                clean_y = torch.matmul(val_samples, pilots)
+                clean_y = (
+                    1 / np.sqrt(cfg_data_val.sample_size[1]) * torch.matmul(val_samples, pilots)
+                )
                 noisy_y = clean_y + cfg_data_val.measurement_noise_std * torch.randn_like(
                     clean_y
                 )
 
-                recon_samples = sample_from_model(
-                    model,
-                    complex_to_real(val_samples),
-                    cfg_sampling,
-                    noise_levels,
-                    noisy_y,
-                    pilots,
-                    cfg_data_val.measurement_noise_std,
+                recon_samples = (
+                    sample_from_model(
+                        model,
+                        complex_to_real(init),
+                        cfg_sampling,
+                        noise_levels,
+                        noisy_y,
+                        pilots,
+                        cfg_data_val.measurement_noise_std,
+                    )
+                    if cfg_train.sample_conditional
+                    else complex_to_real(init)
                 )
                 recon_samples = real_to_complex(recon_samples)
-                # Measure reconstruction and plot if everything went ok
-                if not recon_samples.isnan().any():
-                    recon_mse = torch.sum(
-                        torch.square(torch.abs(recon_samples - val_samples)), dim=(-1, -2)
-                    )
-                    print(f"Validation step {step}, MSE {recon_mse.cpu().numpy()}")
-                    plt.figure()
-                    for i in range(cfg_train.val_batch_size):
-                        plt.subplot(1, cfg_train.val_batch_size, i + 1)
-                        plt.imshow(recon_samples[i].abs().cpu().numpy())
-                        plt.axis("off")
-                    plt.tight_layout()
-                    plt.savefig(
-                        cfg_train.save_dir / f"conditional_step{step}.png",
-                        dpi=300,
-                        bbox_inches="tight",
-                    )
-                    plt.close()
+                recon_mse = torch.sum(
+                    torch.square(torch.abs(recon_samples - val_samples)), dim=(-1, -2)
+                )
+                print(f"Validation step {step}, MSE {recon_mse.cpu().numpy()}")
+                plot_ratio = (cfg_train.val_batch_size * cfg_data_train.sample_size[1]) / (
+                    2 * cfg_data_train.sample_size[0]
+                )
+                plt.figure(figsize=(4 * plot_ratio, 4))
+                for i in range(cfg_train.val_batch_size):
+                    plt.subplot(2, cfg_train.val_batch_size, i + 1)
+                    plt.imshow(val_samples[i].abs().cpu().numpy())
+                    plt.axis("off")
+                    plt.subplot(2, cfg_train.val_batch_size, i + 1 + cfg_train.val_batch_size)
+                    plt.imshow(recon_samples[i].abs().cpu().numpy())
+                    plt.axis("off")
+                plt.tight_layout()
+                plt.savefig(
+                    cfg_train.save_dir / f"conditional_step{step}.png",
+                    dpi=300,
+                    bbox_inches="tight",
+                )
+                plt.close()
 
 
 if __name__ == "__main__":
     cfg_train = TrainConfig()
     cfg_model = UNetConfig()
     cfg_sampling = SamplingConfig(
-        num_steps_outer=cfg_train.num_noise_levels, alpha_0=1e-3, r=cfg_train.r
+        num_steps_outer=cfg_train.num_noise_levels, alpha_0=1e-6, r=cfg_train.r
     )
     cfg_data_train = DataConfig(data_dir=Path("data"), data_tag="train")
     cfg_data_val = DataConfig(data_dir=Path("data"), data_tag="val")
