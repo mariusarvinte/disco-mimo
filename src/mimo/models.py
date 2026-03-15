@@ -1,21 +1,67 @@
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Union, Optional
 
 import torch
 from diffusers import UNet2DModel
+from score_sde_pytorch.models.ncsnv2 import NCSNv2
 
 from mimo.data import DataConfig
 
 
 @dataclass
 class UNetConfig:
-    device: str = "cuda"
-
     num_channels: int = 2
 
     block_out_channels: tuple[int] = (16, 32, 48, 64)
     norm_num_groups: int = 16
     layers_per_block: int = 8
+
+
+@dataclass
+class NCSNv2Config:
+    @dataclass
+    class Model:
+        nf: int = 32
+        normalization: str = "InstanceNorm"
+        nonlinearity: str = "swish"
+
+        sigma_max: float | None = None
+        sigma_min: float | None = None
+        num_scales: int | None = None
+
+    @dataclass
+    class Data:
+        channels: int = 2
+        centered: bool = True
+
+        image_size: int | None = None
+
+    model: Model = field(default_factory=Model)
+    data: Data = field(default_factory=Data)
+
+    def set_sigmas(self, sigma_max: float, sigma_min: float, num_scales: int):
+        self.model.sigma_max = sigma_max
+        self.model.sigma_min = sigma_min
+        self.model.num_scales = num_scales
+
+    def set_image_size(self, image_size: int):
+        self.data.image_size = image_size
+
+
+@dataclass
+class ModelConfig:
+    device: str = "cuda"
+    arch: str = "ncsnv2"
+    config: UNetConfig | NCSNv2Config | None = None
+
+    def __post_init__(self):
+        match self.arch:
+            case "unet2d-diffusers":
+                self.config = UNetConfig()
+            case "ncsnv2":
+                self.config = NCSNv2Config()
+            case _:
+                raise ValueError("Invalid model architecture!")
 
 
 class UNet2DModelNCSN(UNet2DModel):
@@ -40,16 +86,22 @@ class UNet2DModelNCSN(UNet2DModel):
 
 
 def get_model(
-    cfg_model: UNetConfig, cfg_data: DataConfig, noise_levels: torch.Tensor
+    cfg_model: ModelConfig, cfg_data: DataConfig, noise_levels: torch.Tensor
 ) -> UNet2DModel:
-    model = UNet2DModelNCSN(
-        noise_levels=noise_levels,
-        sample_size=cfg_data.sample_size,
-        in_channels=cfg_model.num_channels,
-        out_channels=cfg_model.num_channels,
-        block_out_channels=cfg_model.block_out_channels,
-        layers_per_block=cfg_model.layers_per_block,
-        norm_num_groups=cfg_model.norm_num_groups,
-    )
+    match cfg_model.arch:
+        case "unet2d-diffusers":
+            model = UNet2DModelNCSN(
+                noise_levels=noise_levels,
+                sample_size=cfg_data.sample_size,
+                in_channels=cfg_model.num_channels,
+                out_channels=cfg_model.num_channels,
+                block_out_channels=cfg_model.block_out_channels,
+                layers_per_block=cfg_model.layers_per_block,
+                norm_num_groups=cfg_model.norm_num_groups,
+            )
+        case "ncsnv2":
+            model = NCSNv2(cfg_model.config)
+        case _:
+            raise ValueError("Invalid model architecture!")
 
     return model

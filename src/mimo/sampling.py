@@ -33,7 +33,7 @@ def sample_from_model(
     current = noise_levels[0] * torch.randn(
         (batch_size, 2, *sample_size),
         dtype=torch.float32,
-        device=model.device,
+        device=noise_levels.device,
     )
 
     # Check if there's a mismatch between number of outer steps and noise levels
@@ -41,14 +41,19 @@ def sample_from_model(
         raise RuntimeError("Unequally spaced sampling not yet supported!")
 
     for outer_step in tqdm(range(config.num_steps_outer)):
-        step_size = torch.tensor(config.alpha_0 * config.r**outer_step, device=model.device)
+        step_size = torch.tensor(
+            config.alpha_0 * config.r**outer_step, device=noise_levels.device
+        )
         noise_std = (
-            torch.sqrt(2 * torch.tensor(config.beta, device=model.device) * step_size)
+            torch.sqrt(2 * torch.tensor(config.beta, device=noise_levels.device) * step_size)
             * noise_levels[outer_step]
         )
         for _ in range(config.num_steps_inner):
             # Predict with diffusion model
-            output = model(current, timestep=1)
+            output = model(
+                current,
+                outer_step * torch.ones(len(current), device=current.device, dtype=torch.long),
+            )
             noise = torch.randn_like(output)
 
             # Apply unconditional update equation

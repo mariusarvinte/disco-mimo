@@ -2,11 +2,12 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+import numpy as np
 import torch
 from torch.optim import Adam
 from torch.utils.data import DataLoader, TensorDataset
 
-from mimo.models import UNetConfig, get_model
+from mimo.models import ModelConfig, get_model
 from mimo.data import DataConfig, get_data
 from mimo.data import complex_to_real, real_to_complex
 from mimo.data import generate_measurements
@@ -26,14 +27,14 @@ class TrainConfig:
     num_steps: int = 10000
 
     max_noise_level: float = 10.0
+    min_noise_level: float = 0.01
     num_noise_levels: int = 1000
-    r: float = 0.9933
 
     loss_verbose: int = 50
     val_batch_size: int = 4
     sample_unconditional: bool = True
     sample_conditional: bool = True
-    sampling_verbose: int = 100000
+    sampling_verbose: int = 1000
     sampling_batch: int = 4
 
     save_dir: Path = Path("models")
@@ -41,15 +42,21 @@ class TrainConfig:
 
 def main(
     cfg_train: TrainConfig,
-    cfg_model: UNetConfig,
+    cfg_model: ModelConfig,
     cfg_sampling: SamplingConfig,
     cfg_data_train: DataConfig,
     cfg_data_val: DataConfig,
 ):
     # Instantiate model
-    noise_levels = torch.tensor(cfg_train.max_noise_level) * torch.tensor(
-        cfg_train.r
-    ) ** torch.arange(cfg_train.num_noise_levels).to(cfg_model.device)
+    noise_levels = np.exp(
+        np.linspace(
+            np.log(cfg_train.max_noise_level),
+            np.log(cfg_train.min_noise_level),
+            cfg_train.num_noise_levels,
+        )
+    )
+    noise_levels = torch.tensor(noise_levels, device=cfg_model.device, dtype=torch.float32)
+
     model = get_model(cfg_model, cfg_data_train, noise_levels).to(cfg_model.device)
     total_params = sum(p.numel() for p in model.parameters())
     print(f"Model has {total_params} weights!")
@@ -71,7 +78,7 @@ def main(
     for step in range(cfg_train.num_steps):
         model.train()
         batch = next(iter(train_dataloader))[0]
-        batch = batch.to(model.device)
+        batch = batch.to(cfg_model.device)
 
         # Pick noise levels uniformly at random
         stddev_idx = torch.multinomial(
@@ -82,7 +89,7 @@ def main(
         batch_noisy = complex_to_real(batch_noisy)
 
         # Pass through model
-        output = model(sample=batch_noisy, timestep=stddev_idx)
+        output = model(batch_noisy, stddev_idx)
         output = real_to_complex(output)
 
         # Compute the loss function
@@ -101,7 +108,7 @@ def main(
             with torch.inference_mode():
                 # Get a batch of validation samples
                 val_samples = next(iter(val_dataloader))[0]
-                val_samples = val_samples.to(model.device)
+                val_samples = val_samples.to(cfg_model.device)
 
                 # Unconditional
                 synthetic_samples = (
@@ -154,11 +161,25 @@ def main(
 
 if __name__ == "__main__":
     cfg_train = TrainConfig()
-    cfg_model = UNetConfig()
+    cfg_model = ModelConfig(arch="ncsnv2")
+
+    if cfg_model.arch == "ncsnv2":
+        # Populate sigma values
+        cfg_model.config.set_sigmas(
+            cfg_train.max_noise_level,
+            cfg_train.min_noise_level,
+            cfg_train.num_noise_levels,
+        )
+
     cfg_sampling = SamplingConfig(
-        num_steps_outer=cfg_train.num_noise_levels, alpha_0=1e-6, r=cfg_train.r
+        num_steps_outer=cfg_train.num_noise_levels,
+        alpha_0=1e-6,
+        r=(cfg_train.min_noise_level / cfg_train.max_noise_level)
+        ** (1 / (cfg_train.num_noise_levels - 1)),
     )
     cfg_data_train = DataConfig(data_dir=Path("data"), data_tag="train")
+    if cfg_model.arch == "ncsnv2":
+        cfg_model.config.set_image_size(min(cfg_data_train.sample_size))
     cfg_data_val = DataConfig(data_dir=Path("data"), data_tag="val")
 
     main(cfg_train, cfg_model, cfg_sampling, cfg_data_train, cfg_data_val)
