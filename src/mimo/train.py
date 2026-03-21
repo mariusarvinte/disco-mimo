@@ -21,19 +21,19 @@ from mimo.sampling import plot_paired_data
 
 @dataclass
 class TrainConfig:
-    lr: float = 0.0003
+    lr: float = 0.0001
 
-    batch_size: int = 128
+    batch_size: int = 32
     num_steps: int = 10000
 
-    max_noise_level: float = 10.0
-    min_noise_level: float = 0.01
-    num_noise_levels: int = 1000
+    max_noise_level: float = 39.15
+    noise_step_factor: float = 0.995
+    num_noise_levels: int = 2311
 
-    loss_verbose: int = 50
+    loss_verbose: int = 100
     val_batch_size: int = 4
-    sample_unconditional: bool = True
-    sample_conditional: bool = True
+    sample_unconditional: bool = False
+    sample_conditional: bool = False
     sampling_verbose: int = 1000
     sampling_batch: int = 4
 
@@ -51,7 +51,10 @@ def main(
     noise_levels = np.exp(
         np.linspace(
             np.log(cfg_train.max_noise_level),
-            np.log(cfg_train.min_noise_level),
+            np.log(
+                cfg_train.max_noise_level
+                * cfg_train.noise_step_factor ** (cfg_train.num_noise_levels - 1)
+            ),
             cfg_train.num_noise_levels,
         )
     )
@@ -110,6 +113,23 @@ def main(
                 val_samples = next(iter(val_dataloader))[0]
                 val_samples = val_samples.to(cfg_model.device)
 
+                # Compute validation loss
+                stddev_idx = torch.multinomial(
+                    torch.ones_like(noise_levels),
+                    num_samples=len(val_samples),
+                    replacement=True,
+                )
+                stddev = noise_levels[stddev_idx]
+                val_samples_noisy, noise = add_noise_to_data(val_samples, stddev)
+                val_samples_noisy = complex_to_real(val_samples_noisy)
+
+                # Pass through model
+                output = model(val_samples_noisy, stddev_idx)
+                output = real_to_complex(output)
+
+                # Compute the loss function
+                val_loss = score_training_loss(output, noise, stddev.square())
+
                 # Unconditional
                 synthetic_samples = (
                     sample_from_model(
@@ -148,10 +168,7 @@ def main(
                     if cfg_train.sample_conditional
                     else torch.randn_like(val_samples)
                 )
-                recon_mse = torch.sum(
-                    torch.square(torch.abs(recon_samples - val_samples)), dim=(-1, -2)
-                )
-                print(f"Validation step {step}, MSE {recon_mse.cpu().numpy()}")
+                print(f"Step {step}, Train Loss {loss.item()}, Val. Loss {val_loss.item()}")
                 plot_paired_data(
                     val_samples,
                     recon_samples,
@@ -167,15 +184,15 @@ if __name__ == "__main__":
         # Populate sigma values
         cfg_model.config.set_sigmas(
             cfg_train.max_noise_level,
-            cfg_train.min_noise_level,
+            cfg_train.max_noise_level
+            * cfg_train.noise_step_factor ** (cfg_train.num_noise_levels - 1),
             cfg_train.num_noise_levels,
         )
 
     cfg_sampling = SamplingConfig(
         num_steps_outer=cfg_train.num_noise_levels,
         alpha_0=1e-6,
-        r=(cfg_train.min_noise_level / cfg_train.max_noise_level)
-        ** (1 / (cfg_train.num_noise_levels - 1)),
+        r=cfg_train.noise_step_factor,
     )
     cfg_data_train = DataConfig(data_dir=Path("data"), data_tag="train")
     if cfg_model.arch == "ncsnv2":
