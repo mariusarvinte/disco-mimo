@@ -93,29 +93,29 @@ def main(cfg: CDLConfig):
         pilot_ofdm_symbol_indices=[2, 11],
     )
 
-    carrier_frequency = 2.6e9  # [Hz]
+    carrier_frequency = 40e9  # [Hz]
     ut_array = AntennaArray(
-        num_rows=1,
-        num_cols=int(num_ut_ant / 2),
-        polarization="dual",
-        polarization_type="cross",
+        num_rows=num_ut_ant,
+        num_cols=1,
+        polarization="single",
+        polarization_type="V",
         antenna_pattern="38.901",
         carrier_frequency=carrier_frequency,
     )
     bs_array = AntennaArray(
-        num_rows=1,
-        num_cols=int(num_bs_ant / 2),
-        polarization="dual",
-        polarization_type="cross",
+        num_rows=num_bs_ant,
+        num_cols=1,
+        polarization="single",
+        polarization_type="V",
         antenna_pattern="38.901",
         carrier_frequency=carrier_frequency,
     )
 
-    delay_spread = 300e-9  # Nominal delay spread in [s]. Please see the CDL documentation
+    delay_spread = 30e-9  # Nominal delay spread in [s]. Please see the CDL documentation
     # about how to choose this value.
     direction = "downlink"
     cdl_model = cfg.cdl_model
-    speed = 10  # UT speed [m/s]
+    speed = 0  # UT speed [m/s]
 
     # Configure a channel impulse reponse (CIR) generator for the CDL model.
     # cdl() will generate CIRs that can be converted to discrete time or discrete frequency.
