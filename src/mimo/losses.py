@@ -27,7 +27,7 @@ def score_training_loss(
     """
 
     loss = model_pred + noise / coefficient[..., None, None]
-    loss = torch.linalg.norm(loss, axis=(-1, -2)).square()
+    loss = 1 / 2.0 * torch.linalg.norm(loss, axis=(-1, -2)).square()
     weighted_loss = coefficient * loss
     average_loss = torch.mean(weighted_loss)
 
