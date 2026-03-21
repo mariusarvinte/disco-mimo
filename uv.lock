@@ -628,7 +628,7 @@ torch = [
     { name = "diffusers", extras = ["torch"], specifier = "==0.36.0" },
     { name = "h5py", specifier = "==3.15.1" },
     { name = "numpy", specifier = "==2.4.2" },
-    { name = "score-sde-pytorch", git = "https://github.com/mariusarvinte/score_sde_pytorch?rev=57474e7f6cc5a2981af67b09d010dde50f9b76f9" },
+    { name = "score-sde-pytorch", git = "https://github.com/mariusarvinte/score_sde_pytorch?rev=d428e012d4e1d5fdaa3723ad07330b63e464e8be" },
     { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "==2.10.0" },
     { name = "torch", marker = "sys_platform == 'linux' or sys_platform == 'win32'", specifier = "==2.10.0", index = "https://download.pytorch.org/whl/cu128" },
 ]
@@ -1160,7 +1160,7 @@ wheels = [
 [[package]]
 name = "score-sde-pytorch"
 version = "1.0"
-source = { git = "https://github.com/mariusarvinte/score_sde_pytorch?rev=57474e7f6cc5a2981af67b09d010dde50f9b76f9#57474e7f6cc5a2981af67b09d010dde50f9b76f9" }
+source = { git = "https://github.com/mariusarvinte/score_sde_pytorch?rev=d428e012d4e1d5fdaa3723ad07330b63e464e8be#d428e012d4e1d5fdaa3723ad07330b63e464e8be" }
 dependencies = [
     { name = "ml-collections" },
     { name = "torchdiffeq" },

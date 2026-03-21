@@ -39,7 +39,7 @@ conflicts = [
 torch = [
   { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
-score-sde-pytorch = { git = "https://github.com/mariusarvinte/score_sde_pytorch", rev="57474e7f6cc5a2981af67b09d010dde50f9b76f9" }
+score-sde-pytorch = { git = "https://github.com/mariusarvinte/score_sde_pytorch", rev="d428e012d4e1d5fdaa3723ad07330b63e464e8be" }
 
 [[tool.uv.index]]
 name = "pytorch-cu128"
