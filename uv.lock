@@ -601,7 +601,6 @@ torch = [
     { name = "diffusers", extra = ["torch"], marker = "extra == 'group-4-mimo-torch'" },
     { name = "h5py" },
     { name = "ncsnv2" },
-    { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" } },
     { name = "score-sde-pytorch" },
     { name = "torch", version = "2.3.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-4-mimo-torch') or (sys_platform == 'linux' and extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch') or (sys_platform == 'win32' and extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch')" },
     { name = "torch", version = "2.3.1+cu121", source = { registry = "https://download.pytorch.org/whl/cu121" }, marker = "(sys_platform == 'linux' and extra == 'group-4-mimo-torch') or (sys_platform == 'win32' and extra == 'group-4-mimo-torch') or (extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch')" },
@@ -619,8 +618,7 @@ sionna = [
 torch = [
     { name = "diffusers", extras = ["torch"], specifier = "==0.36.0" },
     { name = "h5py", specifier = "==3.15.1" },
-    { name = "ncsnv2", git = "https://github.com/mariusarvinte/ncsnv2" },
-    { name = "numpy", specifier = "==2.4.3" },
+    { name = "ncsnv2", git = "https://github.com/mariusarvinte/ncsnv2?rev=63f8c166aada6fa14d13dfc208c37ee2ec4aa703" },
     { name = "score-sde-pytorch", git = "https://github.com/mariusarvinte/score_sde_pytorch?rev=68e7ea707fe1784e412b0d909850bd61b2a4fb75" },
     { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "<=2.10.0" },
     { name = "torch", marker = "sys_platform == 'linux' or sys_platform == 'win32'", specifier = "<=2.10.0", index = "https://download.pytorch.org/whl/cu121" },
@@ -691,7 +689,7 @@ wheels = [
 [[package]]
 name = "ncsnv2"
 version = "0.1.0"
-source = { git = "https://github.com/mariusarvinte/ncsnv2#d83676376117263b0467ff9f3a84793b7ade5c12" }
+source = { git = "https://github.com/mariusarvinte/ncsnv2?rev=63f8c166aada6fa14d13dfc208c37ee2ec4aa703#63f8c166aada6fa14d13dfc208c37ee2ec4aa703" }
 dependencies = [
     { name = "numpy", version = "2.4.3", source = { registry = "https://pypi.org/simple" } },
     { name = "torch", version = "2.3.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-4-mimo-torch') or (sys_platform == 'linux' and extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch') or (sys_platform == 'win32' and extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch')" },
