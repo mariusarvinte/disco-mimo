@@ -10,7 +10,6 @@ from torch.utils.data import DataLoader, TensorDataset
 from mimo.models import ModelConfig, get_model
 from mimo.data import DataConfig, get_data
 from mimo.data import complex_to_real, real_to_complex
-from mimo.data import generate_measurements
 
 from mimo.losses import add_noise_to_data
 from mimo.losses import score_training_loss
@@ -24,7 +23,7 @@ class TrainConfig:
     lr: float = 0.0001
 
     batch_size: int = 32
-    num_steps: int = 10000
+    num_steps: int = 50000
 
     max_noise_level: float = 39.15
     noise_step_factor: float = 0.995
@@ -32,9 +31,9 @@ class TrainConfig:
 
     loss_verbose: int = 100
     val_batch_size: int = 4
-    sample_unconditional: bool = False
+    sample_unconditional: bool = True
     sample_conditional: bool = False
-    sampling_verbose: int = 1000
+    sampling_verbose: int = 2000
     sampling_batch: int = 4
 
     save_dir: Path = Path("models")
@@ -78,6 +77,8 @@ def main(
     val_dataloader = DataLoader(val_dataset, batch_size=cfg_train.val_batch_size, shuffle=True)
 
     # Training loop
+    trailing_loss = 0.0
+    train_loss_log, val_loss_log = [], []
     for step in range(cfg_train.num_steps):
         model.train()
         batch = next(iter(train_dataloader))[0]
@@ -97,8 +98,8 @@ def main(
 
         # Compute the loss function
         loss = score_training_loss(output, noise, stddev.square())
-        if step % cfg_train.loss_verbose == 0:
-            print(f"Loss function at step {step} is {loss.item()}")
+        trailing_loss = loss.item() if step == 0 else trailing_loss * 0.99 + loss.item() * 0.01
+        train_loss_log.append(trailing_loss)
 
         # Update the model
         optimizer.zero_grad()
@@ -106,7 +107,7 @@ def main(
         optimizer.step()
 
         # Validate and sample from the model
-        if (step + 1) % cfg_train.sampling_verbose == 0:
+        if (step + 1) % cfg_train.loss_verbose == 0:
             model.eval()
             with torch.inference_mode():
                 # Get a batch of validation samples
@@ -126,54 +127,43 @@ def main(
                 # Pass through model
                 output = model(val_samples_noisy, stddev_idx)
                 output = real_to_complex(output)
-
                 # Compute the loss function
                 val_loss = score_training_loss(output, noise, stddev.square())
+                print(
+                    f"Step {step}, Train Loss {trailing_loss:.2f}, Val. Loss {val_loss.item():.2f}"
+                )
+                val_loss_log.append(val_loss)
 
-                # Unconditional
-                synthetic_samples = (
-                    sample_from_model(
-                        model,
-                        cfg_sampling,
-                        noise_levels,
-                        batch_size=cfg_train.val_batch_size,
-                        sample_size=cfg_data_train.sample_size,
+                # Unconditional sampling
+                if (step + 1) % cfg_train.sampling_verbose == 0:
+                    synthetic_samples = (
+                        sample_from_model(
+                            model,
+                            cfg_sampling,
+                            noise_levels,
+                            batch_size=cfg_train.val_batch_size,
+                            sample_size=cfg_data_train.sample_size,
+                        )
+                        if cfg_train.sample_unconditional
+                        else torch.randn_like(val_samples)
                     )
-                    if cfg_train.sample_unconditional
-                    else torch.randn_like(val_samples)
-                )
-                # Plot the synthetic data
-                plot_paired_data(
-                    val_samples,
-                    synthetic_samples,
-                    cfg_train.save_dir / f"unconditional_step{step}.png",
-                )
-
-                # Conditional
-                noisy_y, pilots = generate_measurements(
-                    val_samples, cfg_data_val.undersampling, cfg_data_val.measurement_noise_std
-                )
-
-                recon_samples = (
-                    sample_from_model(
-                        model,
-                        cfg_sampling,
-                        noise_levels,
-                        cfg_train.val_batch_size,
-                        cfg_data_val.sample_size,
-                        noisy_y,
-                        pilots,
-                        cfg_data_val.measurement_noise_std,
+                    # Plot the synthetic data
+                    plot_paired_data(
+                        val_samples,
+                        synthetic_samples,
+                        cfg_train.save_dir / f"unconditional_step{step}.png",
                     )
-                    if cfg_train.sample_conditional
-                    else torch.randn_like(val_samples)
-                )
-                print(f"Step {step}, Train Loss {loss.item()}, Val. Loss {val_loss.item()}")
-                plot_paired_data(
-                    val_samples,
-                    recon_samples,
-                    cfg_train.save_dir / f"conditional_step{step}.png",
-                )
+                    # Save model weights to disk
+                    torch.save(
+                        {
+                            "model_state_dict": model.state_dict(),
+                            "optim_state_dict": optimizer.state_dict(),
+                            "cfg_train": cfg_train,
+                            "train_loss_log": train_loss_log,
+                            "val_loss_log": val_loss_log,
+                        },
+                        cfg_train.save_dir / f"weights_step{step}.pt",
+                    )
 
 
 if __name__ == "__main__":
@@ -191,7 +181,7 @@ if __name__ == "__main__":
 
     cfg_sampling = SamplingConfig(
         num_steps_outer=cfg_train.num_noise_levels,
-        alpha_0=1e-6,
+        alpha_0=1e-11,
         r=cfg_train.noise_step_factor,
     )
     cfg_data_train = DataConfig(data_dir=Path("data"), data_tag="train")
