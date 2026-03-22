@@ -107,7 +107,7 @@ def sample_from_model(
             print("WARNING: Sampling exited early because of NaN values!")
             return current
 
-    return real_to_complex(current)
+    return current
 
 
 def plot_paired_data(top_row: torch.Tensor, bottom_row: torch.Tensor, save_file: Path):
@@ -147,36 +147,36 @@ def main(cfg_model: ModelConfig, cfg_train: TrainConfig, cfg_data_val: DataConfi
     )
     noise_levels = torch.tensor(noise_levels, device=cfg_model.device, dtype=torch.float32)
     model = get_model(cfg_model, noise_levels).to(cfg_model.device)
+    model.eval()
 
     cfg_sampling = SamplingConfig(
         alpha_0=3e-11
         * (1 / cfg_train.noise_step_factor) ** (2 * (cfg_train.num_noise_levels - 1)),
         r=cfg_train.noise_step_factor,
         num_steps_outer=cfg_train.num_noise_levels,
+        beta=0.01,
     )
 
     # Load real validation
     val_data = get_data(cfg_data_val)
+    val_data = torch.conj(torch.transpose(val_data, -1, -2)).contiguous()
     val_dataset = TensorDataset(val_data)
-    val_dataloader = DataLoader(val_dataset, batch_size=cfg_train.val_batch_size, shuffle=True)
+    val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=True)
     val_samples = next(iter(val_dataloader))[0]
     val_samples = val_samples.to(cfg_model.device)
 
     # Compute validation loss
-    stddev_idx = torch.multinomial(
-        torch.ones_like(noise_levels),
-        num_samples=len(val_samples),
-        replacement=True,
+    stddev_idx = torch.randint(
+        0, len(noise_levels), (len(val_samples),), device=val_samples.device
     )
     stddev = noise_levels[stddev_idx]
+    val_samples = complex_to_real(val_samples)
     val_samples_noisy, noise = add_noise_to_data(val_samples, stddev)
-    val_samples_noisy = complex_to_real(val_samples_noisy)
 
     # Pass through model
     output = model(val_samples_noisy, stddev_idx)
-    output = real_to_complex(output)
     # Compute the loss function
-    val_loss = score_training_loss(output, noise, stddev.square())
+    val_loss = score_training_loss(output, noise, stddev)
     print(f"Val. Loss {val_loss.item():.2f}")
 
     # Generate synthetic data
@@ -185,7 +185,7 @@ def main(cfg_model: ModelConfig, cfg_train: TrainConfig, cfg_data_val: DataConfi
             model,
             cfg_sampling,
             noise_levels,
-            batch_size=cfg_train.val_batch_size,
+            batch_size=4,
             sample_size=cfg_train.sample_size,
         )
 
@@ -193,27 +193,15 @@ def main(cfg_model: ModelConfig, cfg_train: TrainConfig, cfg_data_val: DataConfi
     save_dir = Path("samples")
     os.makedirs(save_dir, exist_ok=True)
     plot_paired_data(
-        val_samples,
-        synthetic_samples,
+        real_to_complex(val_samples).conj().transpose(-1, -2).contiguous(),
+        real_to_complex(synthetic_samples).conj().transpose(-1, -2).contiguous(),
         save_dir / "unconditional.png",
     )
 
 
 if __name__ == "__main__":
-    cfg_model = ModelConfig(arch="ncsnv2", filename=Path("models") / "weights_step99999.pt")
+    cfg_model = ModelConfig(arch="ncsnv2", filename=Path("models") / "weights_step999.pt")
     cfg_train = TrainConfig()
-
-    if cfg_model.arch == "ncsnv2":
-        # Populate sigma values
-        cfg_model.config.set_sigmas(
-            cfg_train.max_noise_level,
-            cfg_train.max_noise_level
-            * cfg_train.noise_step_factor ** (cfg_train.num_noise_levels - 1),
-            cfg_train.num_noise_levels,
-        )
-
     cfg_data_val = DataConfig(data_dir=Path("data"), data_tag="val")
-    if cfg_model.arch == "ncsnv2":
-        cfg_model.config.set_image_size(min(cfg_data_val.sample_size))
 
     main(cfg_model, cfg_train, cfg_data_val)

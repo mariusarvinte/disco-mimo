@@ -4,7 +4,9 @@ from pathlib import Path
 
 import torch
 from diffusers import UNet2DModel
-from score_sde_pytorch.models.ncsnv2 import NCSNv2
+
+# from score_sde_pytorch.models.ncsnv2 import NCSNv2
+from ncsnv2.models.ncsnv2 import NCSNv2Deepest
 
 
 @dataclass
@@ -20,31 +22,29 @@ class UNetConfig:
 class NCSNv2Config:
     @dataclass
     class Model:
-        nf: int = 32
-        normalization: str = "InstanceNorm"
-        nonlinearity: str = "swish"
+        ngf: int = 32
+        num_classes: int = 2311
+        normalization: str = "InstanceNorm++"
+        nonlinearity: str = "relu"
+        sigma_dist: str = "geometric"
 
-        sigma_max: float | None = None
-        sigma_min: float | None = None
-        num_scales: int | None = None
+        sigma_begin: float = 39.15
+        sigma_rate: float = 0.995
 
     @dataclass
     class Data:
+        logit_transform: bool = False
         channels: int = 2
-        centered: bool = True
+        rescaled: bool = False
 
-        image_size: int | None = None
-
+    device: str = "cuda:0"
     model: Model = field(default_factory=Model)
     data: Data = field(default_factory=Data)
 
-    def set_sigmas(self, sigma_max: float, sigma_min: float, num_scales: int):
-        self.model.sigma_max = sigma_max
-        self.model.sigma_min = sigma_min
-        self.model.num_scales = num_scales
-
-    def set_image_size(self, image_size: int):
-        self.data.image_size = image_size
+    def __post_init__(self):
+        self.model.sigma_end = self.model.sigma_begin * self.model.sigma_rate ** (
+            self.model.num_classes - 1
+        )
 
 
 @dataclass
@@ -102,7 +102,7 @@ def get_model(
                 norm_num_groups=cfg_model.norm_num_groups,
             )
         case "ncsnv2":
-            model = NCSNv2(cfg_model.config)
+            model = NCSNv2Deepest(cfg_model.config)
         case _:
             raise ValueError("Invalid model architecture!")
 
