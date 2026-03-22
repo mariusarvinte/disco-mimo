@@ -44,7 +44,7 @@ def compute_epsilon(
         return abs(1 - value)
 
     # Line search
-    result = scipy.optimize.brute(cost, ((1e-11, 1e-8),), Ns=100000, full_output=True)
+    result = scipy.optimize.brute(cost, ((1e-13, 1e-7),), Ns=100000, full_output=True)
     return result[0]
 
 
@@ -73,16 +73,15 @@ def sample_from_model(
         step_size = torch.tensor(
             config.alpha_0 * config.r ** (2 * outer_step), device=noise_levels.device
         )
-        noise_std = (
-            torch.sqrt(2 * torch.tensor(config.beta, device=noise_levels.device) * step_size)
-            * noise_levels[outer_step]
+        noise_std = torch.sqrt(
+            2 * torch.tensor(config.beta, device=noise_levels.device) * step_size
         )
         for _ in range(config.num_steps_inner):
             # Predict with diffusion model
-            output = model(
-                current,
-                outer_step * torch.ones(len(current), device=current.device, dtype=torch.long),
+            labels = outer_step * torch.ones(
+                len(current), device=current.device, dtype=torch.long
             )
+            output = model(current, labels)
             noise = torch.randn_like(output)
 
             # Apply unconditional update equation
@@ -101,6 +100,11 @@ def sample_from_model(
                 ) / (measurement_noise_std**2 + noise_std**2)
 
                 current = current - step_size * complex_to_real(conditional)
+
+            with open("sampling_log_repro.txt", "a") as f:
+                f.write(
+                    f"Step {outer_step}: Alpha {step_size.item():.6f}, Noise (real) {noise_std:.6f}\n"
+                )
 
         # Early exit if we encounter NaN
         if current.isnan().any():
@@ -149,12 +153,19 @@ def main(cfg_model: ModelConfig, cfg_train: TrainConfig, cfg_data_val: DataConfi
     model = get_model(cfg_model, noise_levels).to(cfg_model.device)
     model.eval()
 
+    # Compute recommended epsilon
+    epsilon = compute_epsilon(
+        1,
+        1 / cfg_train.noise_step_factor,
+        cfg_train.max_noise_level
+        * cfg_train.noise_step_factor ** (cfg_train.num_noise_levels - 1),
+    )
     cfg_sampling = SamplingConfig(
-        alpha_0=3e-11
+        alpha_0=epsilon[0]
         * (1 / cfg_train.noise_step_factor) ** (2 * (cfg_train.num_noise_levels - 1)),
         r=cfg_train.noise_step_factor,
         num_steps_outer=cfg_train.num_noise_levels,
-        beta=0.01,
+        beta=1,
     )
 
     # Load real validation
@@ -200,7 +211,7 @@ def main(cfg_model: ModelConfig, cfg_train: TrainConfig, cfg_data_val: DataConfi
 
 
 if __name__ == "__main__":
-    cfg_model = ModelConfig(arch="ncsnv2", filename=Path("models") / "weights_step999.pt")
+    cfg_model = ModelConfig(arch="ncsnv2", filename=Path("models") / "weights_step2999.pt")
     cfg_train = TrainConfig()
     cfg_data_val = DataConfig(data_dir=Path("data"), data_tag="val")
 
