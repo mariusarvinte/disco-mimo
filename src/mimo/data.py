@@ -1,53 +1,33 @@
 import h5py
 import numpy as np
 from pathlib import Path
-from dataclasses import dataclass
 
 import torch
 
-
-@dataclass
-class DataConfig:
-    sample_size: tuple[int] = (16, 64)
-    undersampling: float = 1.0  # (64, 64) -> (16, 64) measurement
-    measurement_noise_std: float = 0.01
-
-    num_samples: int = 1000
-
-    distribution: str = "CDL-C"
-    data_dir: Path | None = None
-    data_tag: str | None = None
-
-    def __post_init__(self):
-        if self.distribution not in ["gaussian", "CDL-A", "CDL-B", "CDL-C", "CDL-D"]:
-            raise ValueError(f"Unsupported data distribution {self.distribution}!")
+from mimo.utils import ChannelConfig
 
 
-def get_data(cfg: DataConfig) -> torch.Tensor:
-    if cfg.distribution == "gaussian":
-        data = torch.randn(
-            cfg.num_samples,
-            *cfg.sample_size,
-            dtype=torch.complex64,
+def get_data(load_path: Path) -> tuple[torch.Tensor, ChannelConfig]:
+    if not load_path.is_file():
+        raise ValueError(f"Load path {load_path} must be a file written by mimo.cdl!")
+
+    with h5py.File(load_path, "r") as f:
+        data = np.asarray(f["data"])
+        config = ChannelConfig(
+            cdl_model=f["cdl_model"][()].decode(),  # type: ignore
+            num_rx=int(f["num_rx"][()]),  # type: ignore
+            num_tx=int(f["num_tx"][()]),  # type: ignore
         )
-    elif "CDL" in cfg.distribution:
-        if cfg.data_tag is None or cfg.data_dir is None:
-            raise ValueError("A tag and folder must be specified when trying to load CDL data!")
-        filename = (
-            cfg.data_dir
-            / f"{cfg.distribution}_rx{cfg.sample_size[0]}_tx{cfg.sample_size[1]}_{cfg.data_tag}.h5"
-        )
-        with h5py.File(filename, "r") as f:
-            data = np.asarray(f["data"])
-        # Convert to tensor
-        data = torch.tensor(data, dtype=torch.complex64)
-    else:
-        raise NotImplementedError("Other data distributions are not yet supported!")
 
-    return data
+    # Convert data to tensor and complex conjugate
+    data = torch.tensor(data, dtype=torch.complex64)
+    data = torch.conj(torch.transpose(data, -1, -2)).contiguous()
+    return data, config
 
 
-def generate_measurements(samples: torch.Tensor, undersampling: float, noise_std: float):
+def generate_measurements(
+    samples: torch.Tensor, undersampling: float, noise_std: float
+) -> tuple[torch.Tensor, torch.Tensor]:
     pilots_real = torch.randn(
         samples.shape[0],
         samples.shape[-1],

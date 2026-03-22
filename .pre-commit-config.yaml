@@ -20,3 +20,19 @@ repos:
       args: [ --fix ]
     # Run the formatter.
     - id: ruff-format
+
+- repo: local
+  hooks:
+      - id: basedpyright-torch
+        name: basedpyright (torch)
+        entry: uv run --group torch basedpyright
+        language: system
+        pass_filenames: false
+        exclude: ^src/mimo/cdl\.py$
+
+      - id: basedpyright-sionna
+        name: basedpyright (sionna)
+        entry: uv run --group sionna basedpyright -p pyrightconfig.sionna.json
+        language: system
+        pass_filenames: false
+        files: ^src/mimo/cdl\.py$

@@ -1,0 +1,9 @@
+{
+  "include": ["src/mimo/cdl.py"],
+  "exclude": [],
+  "ignore": ["**/site-packages/**"],
+  "venvPath": ".",
+  "venv": ".venv",
+  "useLibraryCodeForTypes": false,
+  "typeCheckingMode": "standard"
+}

@@ -1,13 +1,20 @@
 import os
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import h5py
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import tensorflow as tf
+
+import hydra
+from hydra.core.config_store import ConfigStore
+from omegaconf import MISSING, OmegaConf
+
+from mimo.utils import ChannelConfig
 
 from sionna.phy.ofdm import ResourceGrid
 from sionna.phy.channel.tr38901 import AntennaArray, CDL
@@ -16,21 +23,25 @@ from sionna.phy.channel import subcarrier_frequencies, cir_to_ofdm_channel
 
 @dataclass
 class CDLConfig:
-    num_rx: int = 16
-    num_tx: int = 64
+    save_path: Path = MISSING
 
-    cdl_model: str = "C"
+    channel: ChannelConfig = field(default_factory=ChannelConfig)
     num_samples: int = 1000
 
     verbose: bool = False
-    save_dir: Path = Path("data")
-    save_tag: str = "train"
-
     max_chunk_product: int = 10000
+
+    def __post_init__(self):
+        if not self.save_path.suffix:
+            raise ValueError(f"Save path {self.save_path} must be a file!")
+
+
+cs = ConfigStore.instance()
+cs.store(name="cdl", node=CDLConfig)
 
 
 def plot_tensor_grid(
-    data: np.array,
+    data: npt.NDArray[np.complex64],
     cmap: str = "viridis",
     spacing: float = 0.05,
     plot_dir: Path = Path("plots"),
@@ -76,10 +87,14 @@ def plot_tensor_grid(
     plt.close()
 
 
-def main(cfg: CDLConfig):
+@hydra.main(version_base=None, config_name="cdl")
+def main(structured_cfg: CDLConfig) -> None:
+    cfg: CDLConfig = OmegaConf.to_object(structured_cfg)  # type: ignore[reportAssignmentType]
+    os.makedirs(cfg.save_path.parent, exist_ok=True)
+
     # Define the number of UT and BS antennas
-    num_ut_ant = num_streams_per_tx = cfg.num_rx
-    num_bs_ant = cfg.num_tx
+    num_ut_ant = num_streams_per_tx = cfg.channel.num_rx
+    num_bs_ant = cfg.channel.num_tx
     rg = ResourceGrid(
         num_ofdm_symbols=14,
         fft_size=76,
@@ -114,7 +129,7 @@ def main(cfg: CDLConfig):
     delay_spread = 30e-9  # Nominal delay spread in [s]. Please see the CDL documentation
     # about how to choose this value.
     direction = "downlink"
-    cdl_model = cfg.cdl_model
+    cdl_model = cfg.channel.cdl_model
     speed = 0  # UT speed [m/s]
 
     # Configure a channel impulse reponse (CIR) generator for the CDL model.
@@ -130,13 +145,20 @@ def main(cfg: CDLConfig):
     )
 
     # Chunk the channel generation process
-    dataset = np.zeros((cfg.num_samples, cfg.num_rx, cfg.num_tx), dtype=np.complex128)
-    if (size_prod := cfg.num_rx * cfg.num_tx) > cfg.max_chunk_product:
+    dataset = np.zeros(
+        (cfg.num_samples, cfg.channel.num_rx, cfg.channel.num_tx), dtype=np.complex128
+    )
+    if (size_prod := cfg.channel.num_rx * cfg.channel.num_tx) > cfg.max_chunk_product:
         print(
-            f"Warning: the array sizes {cfg.num_rx, cfg.num_tx = } are larger than the chunk size, which may lead to OOM errors!"
+            f"Warning: the array sizes {cfg.channel.num_rx, cfg.channel.num_tx = } \
+are larger than the chunk size, which may lead to OOM errors!"
         )
     chunk_size = cfg.max_chunk_product // size_prod
     num_chunks = int(np.ceil(cfg.num_samples / chunk_size))
+    if num_chunks == 0:
+        raise ValueError("Need to run generation code for at least one chunk!")
+
+    gains, tau, h_freq = None, None, None
     for i in tqdm(range(num_chunks)):
         samples_in_chunk = min((i + 1) * chunk_size, cfg.num_samples) - i * chunk_size
         gains, tau = cdl(
@@ -157,13 +179,14 @@ def main(cfg: CDLConfig):
         ]
 
     # Save dataset to disk
-    os.makedirs(cfg.save_dir, exist_ok=True)
-    filename = f"CDL-{cfg.cdl_model}_rx{cfg.num_rx}_tx{cfg.num_tx}_{cfg.save_tag}.h5"
-    with h5py.File(cfg.save_dir / filename, "w") as f:
+    with h5py.File(cfg.save_path, "w") as f:
         f.create_dataset("data", data=dataset)
+        f.create_dataset("cdl_model", data=cfg.channel.cdl_model)
+        f.create_dataset("num_rx", data=cfg.channel.num_rx)
+        f.create_dataset("num_tx", data=cfg.channel.num_rx)
 
     # Visualize gain matrix in the time-delay domain
-    if cfg.verbose:
+    if cfg.verbose and gains and tau and h_freq:
         print("Shape of the path gains: ", gains.shape)
         print("Shape of the delays:", tau.shape)
         print("Shape of the frequency-domain channel", h_freq.shape)
@@ -171,5 +194,4 @@ def main(cfg: CDLConfig):
 
 
 if __name__ == "__main__":
-    cfg = CDLConfig()
-    main(cfg)
+    main()
