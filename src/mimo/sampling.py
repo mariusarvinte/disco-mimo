@@ -1,5 +1,8 @@
 from dataclasses import dataclass
 from tqdm import tqdm
+from pathlib import Path
+
+from matplotlib import pyplot as plt
 
 import torch
 
@@ -18,15 +21,21 @@ class SamplingConfig:
 
 def sample_from_model(
     model: torch.nn.Module,
-    init: torch.Tensor,
     config: SamplingConfig,
     noise_levels: list[float],
+    batch_size: int,
+    sample_size: tuple[int],
     measurements: torch.Tensor | None = None,
     pilots: torch.Tensor | None = None,
     measurement_noise_std: float | None = None,
 ) -> torch.Tensor:
     # Initialize process
-    current = init
+    current = noise_levels[0] * torch.randn(
+        (batch_size, *sample_size),
+        dtype=torch.complex64,
+        device=model.device,
+    )
+    current = complex_to_real(current)
 
     # Check if there's a mismatch between number of outer steps and noise levels
     if config.num_steps_outer != len(noise_levels):
@@ -66,4 +75,27 @@ def sample_from_model(
             print("WARNING: Sampling exited early because of NaN values!")
             return current
 
-    return current
+    return real_to_complex(current)
+
+
+def plot_paired_data(top_row: torch.Tensor, bottom_row: torch.Tensor, save_file: Path):
+    if top_row.shape != bottom_row.shape:
+        raise ValueError("Cannot plot differently shaped top/bottom row samples!")
+    b, h, w = top_row.shape
+
+    plot_ratio = (b * w) / (2 * h)
+    plt.figure(figsize=(4 * plot_ratio, 4))
+    for i in range(b):
+        plt.subplot(2, b, i + 1)
+        plt.imshow(top_row[i].abs().cpu().numpy())
+        plt.axis("off")
+        plt.subplot(2, b, i + 1 + b)
+        plt.imshow(bottom_row[i].abs().cpu().numpy())
+        plt.axis("off")
+    plt.tight_layout()
+    plt.savefig(
+        save_file,
+        dpi=300,
+        bbox_inches="tight",
+    )
+    plt.close()
