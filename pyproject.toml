@@ -36,7 +36,6 @@ paper = [
 ]
 
 [tool.uv]
-default-groups = ["dev", "torch", "paper"]
 conflicts = [
     [
       { group = "torch" },
@@ -58,6 +57,11 @@ explicit = true
 
 [tool.ruff]
 line-length = 96
+
+[tool.basedpyright]
+exclude = [
+    "src/mimo/cdl.py"
+]
 
 [build-system]
 requires = ["uv_build>=0.9.28,<0.10.0"]

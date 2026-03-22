@@ -21,7 +21,18 @@ repos:
     # Run the formatter.
     - id: ruff-format
 
-- repo: https://github.com/DetachHead/basedpyright-pre-commit-mirror
-  rev: v1.13.0
+- repo: local
   hooks:
-    - id: basedpyright
+      - id: basedpyright-torch
+        name: basedpyright (torch)
+        entry: uv run --group torch basedpyright
+        language: system
+        pass_filenames: false
+        exclude: ^src/mimo/cdl\.py$
+
+      - id: basedpyright-sionna
+        name: basedpyright (sionna)
+        entry: uv run --group sionna basedpyright src/mimo/cdl.py
+        language: system
+        pass_filenames: false
+        files: ^src/mimo/cdl\.py$
