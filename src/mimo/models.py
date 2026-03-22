@@ -1,11 +1,10 @@
 from dataclasses import dataclass, field
 from typing import Union, Optional
+from pathlib import Path
 
 import torch
 from diffusers import UNet2DModel
 from score_sde_pytorch.models.ncsnv2 import NCSNv2
-
-from mimo.data import DataConfig
 
 
 @dataclass
@@ -54,6 +53,8 @@ class ModelConfig:
     arch: str = "ncsnv2"
     config: UNetConfig | NCSNv2Config | None = None
 
+    filename: Path | None = None
+
     def __post_init__(self):
         match self.arch:
             case "unet2d-diffusers":
@@ -86,13 +87,14 @@ class UNet2DModelNCSN(UNet2DModel):
 
 
 def get_model(
-    cfg_model: ModelConfig, cfg_data: DataConfig, noise_levels: torch.Tensor
+    cfg_model: ModelConfig,
+    noise_levels: torch.Tensor,
 ) -> UNet2DModel:
     match cfg_model.arch:
         case "unet2d-diffusers":
             model = UNet2DModelNCSN(
                 noise_levels=noise_levels,
-                sample_size=cfg_data.sample_size,
+                sample_size=cfg_model.sample_size,
                 in_channels=cfg_model.num_channels,
                 out_channels=cfg_model.num_channels,
                 block_out_channels=cfg_model.block_out_channels,
@@ -103,5 +105,10 @@ def get_model(
             model = NCSNv2(cfg_model.config)
         case _:
             raise ValueError("Invalid model architecture!")
+
+    # Load pretrained model state if specified
+    if cfg_model.filename:
+        contents = torch.load(cfg_model.filename, map_location="cpu")
+        model.load_state_dict(contents["model_state_dict"], strict=True)
 
     return model
