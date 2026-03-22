@@ -29,6 +29,7 @@ class TrainConfig:
     batch_size: int = 32
     num_steps: int = 100000
     lr: float = 0.0001
+    eps: float = 0.001
     # Verbosity
     loss_verbose: int = 100
     save_verbose: int = 1000
@@ -53,8 +54,8 @@ cs.store(name="train", node=TrainConfig)
 
 
 @hydra.main(version_base=None, config_name="train")
-def main(cfg: TrainConfig) -> None:
-    cfg = OmegaConf.to_object(cfg)
+def main(structured_cfg: TrainConfig) -> None:
+    cfg: TrainConfig = OmegaConf.to_object(structured_cfg)
     os.makedirs(cfg.save_dir, exist_ok=True)
 
     # Get data
@@ -79,7 +80,7 @@ def main(cfg: TrainConfig) -> None:
     print(f"Model has {total_params} weights!")
 
     # Instantiate optimizer
-    optimizer = Adam(model.parameters(), lr=cfg.lr)
+    optimizer = Adam(model.parameters(), lr=cfg.lr, eps=cfg.eps)
 
     # Training loop
     trailing_loss = 0.0
@@ -133,13 +134,13 @@ def main(cfg: TrainConfig) -> None:
                 )
                 val_loss_log.append(val_loss)
 
-                # Save model weights to
-                if (step + 1) % cfg.save_verbose == 0:
+                # Save model weights to disk
+                if (step + 1) % cfg.save_verbose == 0 or (step + 1) == cfg.num_steps:
                     torch.save(
                         {
                             "model_state_dict": model.state_dict(),
                             "optim_state_dict": optimizer.state_dict(),
-                            "cfg": cfg,
+                            "cfg": OmegaConf.to_container(structured_cfg, resolve=True),
                             "train_loss_log": train_loss_log,
                             "val_loss_log": val_loss_log,
                         },

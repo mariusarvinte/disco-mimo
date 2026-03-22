@@ -6,12 +6,14 @@ readme = "README.md"
 requires-python = "~=3.12.0"
 
 dependencies = [
+    "hydra-core==1.3.2",
     "matplotlib==3.10.8",
+    "omegaconf==2.3.0",
 ]
 
 [dependency-groups]
 dev = [
-    "pre-commit>=4.5.1",
+    "pre-commit==4.5.1",
 ]
 
 torch = [
@@ -20,19 +22,20 @@ torch = [
     "hydra-core==1.3.2",
     "ncsnv2",
     "numpy==1.26.4",
-    "omegaconf==2.3.0",
     "score-sde-pytorch",
     "torch<=2.10.0",
 ]
 
 sionna = [
-    "hydra-core==1.3.2",
-    "omegaconf==2.3.0",
     "sionna-no-rt==1.2.1",
     "tqdm==4.67.3",
 ]
+paper = [
+    "hdf5storage==0.2.2",
+]
 
 [tool.uv]
+default-groups = ["dev", "torch", "paper"]
 conflicts = [
     [
       { group = "torch" },
