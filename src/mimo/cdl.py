@@ -5,9 +5,7 @@ from pathlib import Path
 
 import h5py
 from tqdm import tqdm
-import matplotlib.pyplot as plt
 import numpy as np
-import numpy.typing as npt
 import tensorflow as tf
 
 import hydra
@@ -19,6 +17,8 @@ from mimo.utils import ChannelConfig
 from sionna.phy.ofdm import ResourceGrid
 from sionna.phy.channel.tr38901 import AntennaArray, CDL
 from sionna.phy.channel import subcarrier_frequencies, cir_to_ofdm_channel
+
+from plots import plot_cdfs
 
 
 @dataclass
@@ -38,53 +38,6 @@ class CDLConfig:
 
 cs = ConfigStore.instance()
 cs.store(name="cdl", node=CDLConfig)
-
-
-def plot_tensor_grid(
-    data: npt.NDArray[np.complex64],
-    cmap: str = "viridis",
-    spacing: float = 0.05,
-    plot_dir: Path = Path("plots"),
-):
-    _, _, outer_dim, inner_dim = data.shape
-
-    # Create the figure
-    # We want 'delay' rows and 'time' columns
-    fig, axes = plt.subplots(
-        nrows=outer_dim,
-        ncols=inner_dim,
-        figsize=(outer_dim * 1.5, inner_dim * 1.5),
-        sharex=True,
-        sharey=True,
-        gridspec_kw={"wspace": spacing, "hspace": spacing},
-    )
-
-    # Global min/max for consistent color scaling
-    v_min, v_max = data.min(), data.max()
-
-    for o in range(outer_dim):
-        for i in range(inner_dim):
-            ax = axes[o, i]
-            # Extract [rx, tx] slice
-            slice_data = data[:, :, o, i]
-            ax.imshow(slice_data, aspect="auto", cmap=cmap, vmin=v_min, vmax=v_max)
-
-            # Clean up internal ticks to save space
-            ax.set_xticks([])
-            ax.set_yticks([])
-
-            # Label the outer grid edges only
-            if o == outer_dim - 1:
-                ax.set_xlabel(f"F{i}", fontsize=8)
-            if i == 0:
-                ax.set_ylabel(f"T{o}", fontsize=8)
-
-    # Add big labels for the entire grid
-    fig.supxlabel("Frequency Axis", fontsize=12, fontweight="bold")
-    fig.supylabel("Time Axis", fontsize=12, fontweight="bold")
-    os.makedirs(plot_dir, exist_ok=True)
-    plt.savefig(plot_dir / "frequency.png", dpi=300, bbox_inches="tight")
-    plt.close()
 
 
 @hydra.main(version_base=None, config_name="cdl")
@@ -130,7 +83,7 @@ def main(structured_cfg: CDLConfig) -> None:
     # about how to choose this value.
     direction = "downlink"
     cdl_model = cfg.channel.cdl_model
-    speed = 0  # UT speed [m/s]
+    speed = 5  # UT speed [m/s]
 
     # Configure a channel impulse reponse (CIR) generator for the CDL model.
     # cdl() will generate CIRs that can be converted to discrete time or discrete frequency.
@@ -170,6 +123,8 @@ are larger than the chunk size, which may lead to OOM errors!"
         frequencies = subcarrier_frequencies(rg.fft_size, rg.subcarrier_spacing)
         h_freq = cir_to_ofdm_channel(frequencies, gains, tau, normalize=True)
         h_freq = tf.squeeze(h_freq).numpy()
+        if direction == "uplink":
+            h_freq = np.conj(np.transpose(h_freq, axes=(0, 2, 1, 3, 4)))
 
         # Subsample data at random in the time-frequency grid
         random_times = np.random.randint(0, h_freq.shape[-2], size=samples_in_chunk)
@@ -185,12 +140,15 @@ are larger than the chunk size, which may lead to OOM errors!"
         f.create_dataset("num_rx", data=cfg.channel.num_rx)
         f.create_dataset("num_tx", data=cfg.channel.num_rx)
 
-    # Visualize gain matrix in the time-delay domain
-    if cfg.verbose and gains and tau and h_freq:
-        print("Shape of the path gains: ", gains.shape)
-        print("Shape of the delays:", tau.shape)
-        print("Shape of the frequency-domain channel", h_freq.shape)
-        plot_tensor_grid(np.abs(h_freq[0, :, :, :, ::8]))
+    # Plot generated data compared to reference data
+    if cfg.verbose:
+        ref_path = (
+            Path("../") / "score-based-channels/data/CDL-C_Nt64_Nr16_ULA0.50_seed1234.mat"
+        )
+        repro_path = cfg.save_path
+        plot_cdfs(
+            [ref_path, repro_path], labels=["Original", "Reproduced"], uses_hdf5=[True, False]
+        )
 
 
 if __name__ == "__main__":
