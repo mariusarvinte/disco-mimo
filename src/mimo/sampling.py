@@ -1,22 +1,51 @@
+import os
+
 from dataclasses import dataclass
 from tqdm import tqdm
 from pathlib import Path
+import numpy as np
 
 from matplotlib import pyplot as plt
 
+import scipy
 import torch
+from torch.utils.data import DataLoader, TensorDataset
 
-from mimo.data import complex_to_real, real_to_complex
+from mimo.data import DataConfig, complex_to_real, real_to_complex, get_data
+from mimo.train import TrainConfig
+from mimo.models import ModelConfig, get_model
+
+from mimo.losses import add_noise_to_data
+from mimo.losses import score_training_loss
 
 
 @dataclass
 class SamplingConfig:
-    num_steps_outer: int
     alpha_0: float
     r: float
+    num_steps_outer: int
 
     num_steps_inner: int = 1
     beta: float = 1
+
+
+def compute_epsilon(
+    num_steps_inner: int, noise_step_factor: float, min_noise_level: float
+) -> float:
+    # Cost function
+    def cost(epsilon: float) -> float:
+        ratio = epsilon / min_noise_level**2
+        denominator = min_noise_level**2 - min_noise_level**2 * (1 - ratio) ** 2
+        fraction = 2 * epsilon / denominator
+
+        value = (1 - ratio) ** (2 * num_steps_inner) * (
+            (1 / noise_step_factor) ** 2 - fraction
+        ) + fraction
+        return abs(1 - value)
+
+    # Line search
+    result = scipy.optimize.brute(cost, ((1e-13, 1e-7),), Ns=100000, full_output=True)
+    return result[0]
 
 
 def sample_from_model(
@@ -42,18 +71,17 @@ def sample_from_model(
 
     for outer_step in tqdm(range(config.num_steps_outer)):
         step_size = torch.tensor(
-            config.alpha_0 * config.r**outer_step, device=noise_levels.device
+            config.alpha_0 * config.r ** (2 * outer_step), device=noise_levels.device
         )
-        noise_std = (
-            torch.sqrt(2 * torch.tensor(config.beta, device=noise_levels.device) * step_size)
-            * noise_levels[outer_step]
+        noise_std = torch.sqrt(
+            2 * torch.tensor(config.beta, device=noise_levels.device) * step_size
         )
         for _ in range(config.num_steps_inner):
             # Predict with diffusion model
-            output = model(
-                current,
-                outer_step * torch.ones(len(current), device=current.device, dtype=torch.long),
+            labels = outer_step * torch.ones(
+                len(current), device=current.device, dtype=torch.long
             )
+            output = model(current, labels)
             noise = torch.randn_like(output)
 
             # Apply unconditional update equation
@@ -73,12 +101,17 @@ def sample_from_model(
 
                 current = current - step_size * complex_to_real(conditional)
 
+            with open("sampling_log_repro.txt", "a") as f:
+                f.write(
+                    f"Step {outer_step}: Alpha {step_size.item():.6f}, Noise (real) {noise_std:.6f}\n"
+                )
+
         # Early exit if we encounter NaN
         if current.isnan().any():
             print("WARNING: Sampling exited early because of NaN values!")
             return current
 
-    return real_to_complex(current)
+    return current
 
 
 def plot_paired_data(top_row: torch.Tensor, bottom_row: torch.Tensor, save_file: Path):
@@ -102,3 +135,84 @@ def plot_paired_data(top_row: torch.Tensor, bottom_row: torch.Tensor, save_file:
         bbox_inches="tight",
     )
     plt.close()
+
+
+def main(cfg_model: ModelConfig, cfg_train: TrainConfig, cfg_data_val: DataConfig):
+    # Instantiate model
+    noise_levels = np.exp(
+        np.linspace(
+            np.log(cfg_train.max_noise_level),
+            np.log(
+                cfg_train.max_noise_level
+                * cfg_train.noise_step_factor ** (cfg_train.num_noise_levels - 1)
+            ),
+            cfg_train.num_noise_levels,
+        )
+    )
+    noise_levels = torch.tensor(noise_levels, device=cfg_model.device, dtype=torch.float32)
+    model = get_model(cfg_model, noise_levels).to(cfg_model.device)
+    model.eval()
+
+    # Compute recommended epsilon
+    epsilon = compute_epsilon(
+        1,
+        1 / cfg_train.noise_step_factor,
+        cfg_train.max_noise_level
+        * cfg_train.noise_step_factor ** (cfg_train.num_noise_levels - 1),
+    )
+    cfg_sampling = SamplingConfig(
+        alpha_0=epsilon[0]
+        * (1 / cfg_train.noise_step_factor) ** (2 * (cfg_train.num_noise_levels - 1)),
+        r=cfg_train.noise_step_factor,
+        num_steps_outer=cfg_train.num_noise_levels,
+        beta=1,
+    )
+
+    # Load real validation
+    val_data = get_data(cfg_data_val)
+    val_data = torch.conj(torch.transpose(val_data, -1, -2)).contiguous()
+    val_dataset = TensorDataset(val_data)
+    val_dataloader = DataLoader(val_dataset, batch_size=4, shuffle=True)
+    val_samples = next(iter(val_dataloader))[0]
+    val_samples = val_samples.to(cfg_model.device)
+
+    # Compute validation loss
+    stddev_idx = torch.randint(
+        0, len(noise_levels), (len(val_samples),), device=val_samples.device
+    )
+    stddev = noise_levels[stddev_idx]
+    val_samples = complex_to_real(val_samples)
+    val_samples_noisy, noise = add_noise_to_data(val_samples, stddev)
+
+    # Pass through model
+    output = model(val_samples_noisy, stddev_idx)
+    # Compute the loss function
+    val_loss = score_training_loss(output, noise, stddev)
+    print(f"Val. Loss {val_loss.item():.2f}")
+
+    # Generate synthetic data
+    with torch.inference_mode():
+        synthetic_samples = sample_from_model(
+            model,
+            cfg_sampling,
+            noise_levels,
+            batch_size=4,
+            sample_size=cfg_train.sample_size,
+        )
+
+    # Plot the synthetic data
+    save_dir = Path("samples")
+    os.makedirs(save_dir, exist_ok=True)
+    plot_paired_data(
+        real_to_complex(val_samples).conj().transpose(-1, -2).contiguous(),
+        real_to_complex(synthetic_samples).conj().transpose(-1, -2).contiguous(),
+        save_dir / "unconditional.png",
+    )
+
+
+if __name__ == "__main__":
+    cfg_model = ModelConfig(arch="ncsnv2", filename=Path("models") / "weights_step2999.pt")
+    cfg_train = TrainConfig()
+    cfg_data_val = DataConfig(data_dir=Path("data"), data_tag="val")
+
+    main(cfg_model, cfg_train, cfg_data_val)

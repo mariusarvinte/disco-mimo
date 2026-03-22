@@ -1,11 +1,12 @@
 from dataclasses import dataclass, field
 from typing import Union, Optional
+from pathlib import Path
 
 import torch
 from diffusers import UNet2DModel
-from score_sde_pytorch.models.ncsnv2 import NCSNv2
 
-from mimo.data import DataConfig
+# from score_sde_pytorch.models.ncsnv2 import NCSNv2
+from ncsnv2.models.ncsnv2 import NCSNv2Deepest
 
 
 @dataclass
@@ -21,31 +22,29 @@ class UNetConfig:
 class NCSNv2Config:
     @dataclass
     class Model:
-        nf: int = 32
-        normalization: str = "InstanceNorm"
-        nonlinearity: str = "swish"
+        ngf: int = 32
+        num_classes: int = 2311
+        normalization: str = "InstanceNorm++"
+        nonlinearity: str = "relu"
+        sigma_dist: str = "geometric"
 
-        sigma_max: float | None = None
-        sigma_min: float | None = None
-        num_scales: int | None = None
+        sigma_begin: float = 39.15
+        sigma_rate: float = 0.995
 
     @dataclass
     class Data:
+        logit_transform: bool = False
         channels: int = 2
-        centered: bool = True
+        rescaled: bool = False
 
-        image_size: int | None = None
-
+    device: str = "cuda:0"
     model: Model = field(default_factory=Model)
     data: Data = field(default_factory=Data)
 
-    def set_sigmas(self, sigma_max: float, sigma_min: float, num_scales: int):
-        self.model.sigma_max = sigma_max
-        self.model.sigma_min = sigma_min
-        self.model.num_scales = num_scales
-
-    def set_image_size(self, image_size: int):
-        self.data.image_size = image_size
+    def __post_init__(self):
+        self.model.sigma_end = self.model.sigma_begin * self.model.sigma_rate ** (
+            self.model.num_classes - 1
+        )
 
 
 @dataclass
@@ -53,6 +52,8 @@ class ModelConfig:
     device: str = "cuda"
     arch: str = "ncsnv2"
     config: UNetConfig | NCSNv2Config | None = None
+
+    filename: Path | None = None
 
     def __post_init__(self):
         match self.arch:
@@ -86,13 +87,14 @@ class UNet2DModelNCSN(UNet2DModel):
 
 
 def get_model(
-    cfg_model: ModelConfig, cfg_data: DataConfig, noise_levels: torch.Tensor
+    cfg_model: ModelConfig,
+    noise_levels: torch.Tensor,
 ) -> UNet2DModel:
     match cfg_model.arch:
         case "unet2d-diffusers":
             model = UNet2DModelNCSN(
                 noise_levels=noise_levels,
-                sample_size=cfg_data.sample_size,
+                sample_size=cfg_model.sample_size,
                 in_channels=cfg_model.num_channels,
                 out_channels=cfg_model.num_channels,
                 block_out_channels=cfg_model.block_out_channels,
@@ -100,8 +102,13 @@ def get_model(
                 norm_num_groups=cfg_model.norm_num_groups,
             )
         case "ncsnv2":
-            model = NCSNv2(cfg_model.config)
+            model = NCSNv2Deepest(cfg_model.config)
         case _:
             raise ValueError("Invalid model architecture!")
+
+    # Load pretrained model state if specified
+    if cfg_model.filename:
+        contents = torch.load(cfg_model.filename, map_location="cpu")
+        model.load_state_dict(contents["model_state_dict"], strict=True)
 
     return model
