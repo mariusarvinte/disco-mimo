@@ -6,6 +6,7 @@ from pathlib import Path
 
 import torch
 from diffusers import UNet2DModel
+from diffusers.models.unets.unet_2d import UNet2DOutput
 from omegaconf import MISSING
 
 from ncsnv2.models.ncsnv2 import NCSNv2Deepest
@@ -14,10 +15,10 @@ from ncsnv2.models.ncsnv2 import NCSNv2Deepest
 @dataclass
 class UNetConfig:
     noise_levels: torch.Tensor = MISSING
-    sample_size: tuple[int] = MISSING
+    sample_size: tuple[int, int] = MISSING
 
     channels: int = 2
-    block_out_channels: tuple[int] = (16, 32, 48, 64)
+    block_out_channels: tuple[int, int, int, int] = (16, 32, 48, 64)
     norm_num_groups: int = 16
     layers_per_block: int = 8
 
@@ -58,20 +59,26 @@ class UNet2DModelNCSN(UNet2DModel):
         timestep: Union[torch.Tensor, float, int],
         class_labels: Optional[torch.Tensor] = None,
         return_dict: bool = True,
-    ) -> torch.Tensor:
+    ) -> Union[UNet2DOutput, tuple]:
+        if not isinstance(timestep, torch.Tensor):
+            raise ValueError("Wrapper method only support tensor timesteps!")
+
         outputs = super().forward(sample, timestep, class_labels, return_dict)
 
         # Unpack output and apply NCSNv2 normalization trick
-        output = outputs["sample"]
+        if not isinstance(outputs, UNet2DOutput):
+            raise ValueError("Wrapper expects diffusers to return an object!")
+
+        output: torch.Tensor = outputs.sample
         extra_dims = len(output.shape) - len(timestep.shape)
         output = output / self.sigmas[timestep][..., *[None] * extra_dims]
-        return output
+        return UNet2DOutput(sample=output)
 
 
 def get_model(
     arch: str,
     max_noise_level: float,
-    num_noise_levels: float,
+    num_noise_levels: int,
     noise_step_factor: float,
     noise_distribution: str = "geometric",
     num_rx: int | None = None,
@@ -81,6 +88,9 @@ def get_model(
 ) -> torch.nn.Module:
     match arch:
         case "unet2d-diffusers":
+            if num_rx is None or num_tx is None:
+                raise ValueError("num_rx and num_tx must be specified for diffusers!")
+
             noise_levels = np.exp(
                 np.linspace(
                     np.log(max_noise_level),

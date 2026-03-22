@@ -1,7 +1,9 @@
 import torch
 
 
-def add_noise_to_data(data: torch.Tensor, stddev: torch.Tensor) -> torch.Tensor:
+def add_noise_to_data(
+    data: torch.Tensor, stddev: torch.Tensor
+) -> tuple[torch.Tensor, torch.Tensor]:
     noise = stddev[..., None, None, None] * torch.randn_like(data)
     noisy_data = data + noise
 

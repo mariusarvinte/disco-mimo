@@ -14,9 +14,9 @@ def get_data(load_path: Path) -> tuple[torch.Tensor, ChannelConfig]:
     with h5py.File(load_path, "r") as f:
         data = np.asarray(f["data"])
         config = ChannelConfig(
-            cdl_model=f["cdl_model"],
-            num_rx=f["num_rx"],
-            num_tx=f["num_tx"],
+            cdl_model=f["cdl_model"][()].decode(),  # type: ignore
+            num_rx=int(f["num_rx"][()]),  # type: ignore
+            num_tx=int(f["num_tx"][()]),  # type: ignore
         )
 
     # Convert data to tensor and complex conjugate

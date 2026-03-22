@@ -55,7 +55,7 @@ cs.store(name="train", node=TrainConfig)
 
 @hydra.main(version_base=None, config_name="train")
 def main(structured_cfg: TrainConfig) -> None:
-    cfg: TrainConfig = OmegaConf.to_object(structured_cfg)
+    cfg: TrainConfig = OmegaConf.to_object(structured_cfg)  # type: ignore[reportAssignmentType]
     os.makedirs(cfg.save_dir, exist_ok=True)
 
     # Get data

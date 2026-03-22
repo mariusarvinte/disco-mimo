@@ -7,6 +7,7 @@ import h5py
 from tqdm import tqdm
 import matplotlib.pyplot as plt
 import numpy as np
+import numpy.typing as npt
 import tensorflow as tf
 
 import hydra
@@ -40,7 +41,7 @@ cs.store(name="cdl", node=CDLConfig)
 
 
 def plot_tensor_grid(
-    data: np.array,
+    data: npt.NDArray[np.complex64],
     cmap: str = "viridis",
     spacing: float = 0.05,
     plot_dir: Path = Path("plots"),
@@ -87,8 +88,8 @@ def plot_tensor_grid(
 
 
 @hydra.main(version_base=None, config_name="cdl")
-def main(cfg: CDLConfig) -> None:
-    cfg = OmegaConf.to_object(cfg)
+def main(structured_cfg: CDLConfig) -> None:
+    cfg: CDLConfig = OmegaConf.to_object(structured_cfg)  # type: ignore[reportAssignmentType]
     os.makedirs(cfg.save_path.parent, exist_ok=True)
 
     # Define the number of UT and BS antennas
@@ -154,6 +155,10 @@ are larger than the chunk size, which may lead to OOM errors!"
         )
     chunk_size = cfg.max_chunk_product // size_prod
     num_chunks = int(np.ceil(cfg.num_samples / chunk_size))
+    if num_chunks == 0:
+        raise ValueError("Need to run generation code for at least one chunk!")
+
+    gains, tau, h_freq = None, None, None
     for i in tqdm(range(num_chunks)):
         samples_in_chunk = min((i + 1) * chunk_size, cfg.num_samples) - i * chunk_size
         gains, tau = cdl(
@@ -181,7 +186,7 @@ are larger than the chunk size, which may lead to OOM errors!"
         f.create_dataset("num_tx", data=cfg.channel.num_rx)
 
     # Visualize gain matrix in the time-delay domain
-    if cfg.verbose:
+    if cfg.verbose and gains and tau and h_freq:
         print("Shape of the path gains: ", gains.shape)
         print("Shape of the delays:", tau.shape)
         print("Shape of the frequency-domain channel", h_freq.shape)
