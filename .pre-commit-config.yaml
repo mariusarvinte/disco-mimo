@@ -32,7 +32,7 @@ repos:
 
       - id: basedpyright-sionna
         name: basedpyright (sionna)
-        entry: uv run --group sionna basedpyright src/mimo/cdl.py
+        entry: uv run --group sionna basedpyright -p pyrightconfig.sionna.json
         language: system
         pass_filenames: false
         files: ^src/mimo/cdl\.py$

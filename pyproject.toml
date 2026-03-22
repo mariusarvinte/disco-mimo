@@ -59,9 +59,14 @@ explicit = true
 line-length = 96
 
 [tool.basedpyright]
-exclude = [
-    "src/mimo/cdl.py"
-]
+include = ["src"]
+exclude = ["src/mimo/cdl.py"]
+ignore = [".venv"]
+
+venvPath = "."
+venv = ".venv"
+typeCheckingMode = "standard"
+deprecateTypingAliases = true
 
 [build-system]
 requires = ["uv_build>=0.9.28,<0.10.0"]
