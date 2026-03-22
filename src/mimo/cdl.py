@@ -147,7 +147,10 @@ are larger than the chunk size, which may lead to OOM errors!"
         )
         repro_path = cfg.save_path
         plot_cdfs(
-            [ref_path, repro_path], labels=["Original", "Reproduced"], uses_hdf5=[True, False]
+            [ref_path, repro_path],
+            labels=["Original", "Reproduced"],
+            uses_hdf5=[True, False],
+            transpose=[False, True],
         )
 
 
