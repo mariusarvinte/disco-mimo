@@ -147,6 +147,8 @@ if __name__ == "__main__":
     cfg_train = TrainConfig()
     cfg_model = ModelConfig(arch="ncsnv2")
     cfg_data_train = DataConfig(data_dir=Path("data"), data_tag="train")
+    if cfg_model.arch == "ncsnv2":
+        cfg_model.config.set_image_size(min(cfg_data_train.sample_size))
     cfg_data_val = DataConfig(data_dir=Path("data"), data_tag="val")
 
     main(cfg_train, cfg_model, cfg_data_train, cfg_data_val)
