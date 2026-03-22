@@ -19,8 +19,9 @@ def get_data(load_path: Path) -> tuple[torch.Tensor, ChannelConfig]:
             num_tx=f["num_tx"],
         )
 
-    # Convert data to tensor
+    # Convert data to tensor and complex conjugate
     data = torch.tensor(data, dtype=torch.complex64)
+    data = torch.conj(torch.transpose(data, -1, -2)).contiguous()
     return data, config
 
 

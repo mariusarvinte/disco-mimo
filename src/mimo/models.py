@@ -1,3 +1,5 @@
+import numpy as np
+
 from dataclasses import dataclass, field
 from typing import Union, Optional
 from pathlib import Path
@@ -11,10 +13,10 @@ from ncsnv2.models.ncsnv2 import NCSNv2Deepest
 
 @dataclass
 class UNetConfig:
-    channels: int = MISSING
     noise_levels: torch.Tensor = MISSING
     sample_size: tuple[int] = MISSING
 
+    channels: int = 2
     block_out_channels: tuple[int] = (16, 32, 48, 64)
     norm_num_groups: int = 16
     layers_per_block: int = 8
@@ -26,6 +28,7 @@ class NCSNv2Config:
     class Model:
         num_classes: int = MISSING
         sigma_begin: float = MISSING
+        sigma_end: float = MISSING
         sigma_rate: float = MISSING
         sigma_dist: str = MISSING
 
@@ -39,20 +42,15 @@ class NCSNv2Config:
         channels: int = 2
         rescaled: bool = False
 
-    device: str = "cuda:0"
+    device: str = MISSING
     model: Model = field(default_factory=Model)
     data: Data = field(default_factory=Data)
-
-    def __post_init__(self):
-        self.model.sigma_end = self.model.sigma_begin * self.model.sigma_rate ** (
-            self.model.num_classes - 1
-        )
 
 
 class UNet2DModelNCSN(UNet2DModel):
     def __init__(self, noise_levels: torch.Tensor, *args, **kwargs):
         super().__init__(*args, **kwargs)
-        self.noise_levels = noise_levels
+        self.sigmas = noise_levels
 
     def forward(
         self,
@@ -66,20 +64,46 @@ class UNet2DModelNCSN(UNet2DModel):
         # Unpack output and apply NCSNv2 normalization trick
         output = outputs["sample"]
         extra_dims = len(output.shape) - len(timestep.shape)
-        output = output / self.noise_levels[timestep][..., *[None] * extra_dims]
+        output = output / self.sigmas[timestep][..., *[None] * extra_dims]
         return output
 
 
 def get_model(
     arch: str,
-    config: UNetConfig | NCSNv2Config,
-    filename: Path,
+    max_noise_level: float,
+    num_noise_levels: float,
+    noise_step_factor: float,
+    noise_distribution: str = "geometric",
+    num_rx: int | None = None,
+    num_tx: int | None = None,
+    device: str = "cuda",
+    filename: Path | None = None,
 ) -> torch.nn.Module:
     match arch:
         case "unet2d-diffusers":
-            model = get_diffusers_model(config)
+            noise_levels = np.exp(
+                np.linspace(
+                    np.log(max_noise_level),
+                    np.log(max_noise_level * noise_step_factor ** (num_noise_levels - 1)),
+                    num_noise_levels,
+                )
+            )
+            noise_levels = torch.tensor(noise_levels, device=device, dtype=torch.float32)
+            model_config = UNetConfig(noise_levels=noise_levels, sample_size=(num_rx, num_tx))
+            model = get_diffusers_model(model_config)
+
         case "ncsnv2":
-            model = get_ncsnv2_model(config)
+            model_config = NCSNv2Config(device=device)
+            # Populate required inner configurations
+            model_config.model.num_classes = num_noise_levels
+            model_config.model.sigma_begin = max_noise_level
+            model_config.model.sigma_rate = noise_step_factor
+            model_config.model.sigma_dist = noise_distribution
+            model_config.model.sigma_end = (
+                model_config.model.sigma_begin
+                * model_config.model.sigma_rate ** (model_config.model.num_classes - 1)
+            )
+            model = get_ncsnv2_model(model_config)
         case _:
             raise ValueError("Invalid model architecture!")
 
