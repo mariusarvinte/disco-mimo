@@ -34,7 +34,7 @@ class NCSNv2Config:
 
         ngf: int = 32
         normalization: str = "InstanceNorm++"
-        nonlinearity: str = "relu"
+        nonlinearity: str = "elu"
 
     @dataclass
     class Data:
