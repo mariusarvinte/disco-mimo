@@ -9,6 +9,10 @@ import matplotlib.pyplot as plt
 import numpy as np
 import tensorflow as tf
 
+import hydra
+from hydra.core.config_store import ConfigStore
+from omegaconf import MISSING
+
 from sionna.phy.ofdm import ResourceGrid
 from sionna.phy.channel.tr38901 import AntennaArray, CDL
 from sionna.phy.channel import subcarrier_frequencies, cir_to_ofdm_channel
@@ -16,17 +20,21 @@ from sionna.phy.channel import subcarrier_frequencies, cir_to_ofdm_channel
 
 @dataclass
 class CDLConfig:
+    save_dir: Path = MISSING
+    save_tag: str = "train"
+
+    cdl_model: str = "C"
     num_rx: int = 16
     num_tx: int = 64
 
-    cdl_model: str = "C"
     num_samples: int = 1000
 
     verbose: bool = False
-    save_dir: Path = Path("data")
-    save_tag: str = "train"
-
     max_chunk_product: int = 10000
+
+
+cs = ConfigStore.instance()
+cs.store(name="cdl", node=CDLConfig)
 
 
 def plot_tensor_grid(
@@ -76,7 +84,12 @@ def plot_tensor_grid(
     plt.close()
 
 
-def main(cfg: CDLConfig):
+@hydra.main(version_base=None, config_name="cdl")
+def main(cfg: CDLConfig) -> None:
+    # Save location
+    os.makedirs(cfg.save_dir, exist_ok=True)
+    filename = f"CDL-{cfg.cdl_model}_rx{cfg.num_rx}_tx{cfg.num_tx}_{cfg.save_tag}.h5"
+
     # Define the number of UT and BS antennas
     num_ut_ant = num_streams_per_tx = cfg.num_rx
     num_bs_ant = cfg.num_tx
@@ -157,8 +170,6 @@ def main(cfg: CDLConfig):
         ]
 
     # Save dataset to disk
-    os.makedirs(cfg.save_dir, exist_ok=True)
-    filename = f"CDL-{cfg.cdl_model}_rx{cfg.num_rx}_tx{cfg.num_tx}_{cfg.save_tag}.h5"
     with h5py.File(cfg.save_dir / filename, "w") as f:
         f.create_dataset("data", data=dataset)
 
@@ -171,5 +182,4 @@ def main(cfg: CDLConfig):
 
 
 if __name__ == "__main__":
-    cfg = CDLConfig()
-    main(cfg)
+    main()
