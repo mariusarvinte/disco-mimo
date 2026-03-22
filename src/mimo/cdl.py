@@ -11,7 +11,7 @@ import tensorflow as tf
 
 import hydra
 from hydra.core.config_store import ConfigStore
-from omegaconf import MISSING
+from omegaconf import MISSING, OmegaConf
 
 from sionna.phy.ofdm import ResourceGrid
 from sionna.phy.channel.tr38901 import AntennaArray, CDL
@@ -20,8 +20,7 @@ from sionna.phy.channel import subcarrier_frequencies, cir_to_ofdm_channel
 
 @dataclass
 class CDLConfig:
-    save_dir: Path = MISSING
-    save_tag: str = "train"
+    save_path: Path = MISSING
 
     cdl_model: str = "C"
     num_rx: int = 16
@@ -31,6 +30,10 @@ class CDLConfig:
 
     verbose: bool = False
     max_chunk_product: int = 10000
+
+    def __post_init__(self):
+        if not self.save_path.suffix:
+            raise ValueError(f"Save path {self.save_path} must be a file!")
 
 
 cs = ConfigStore.instance()
@@ -86,9 +89,8 @@ def plot_tensor_grid(
 
 @hydra.main(version_base=None, config_name="cdl")
 def main(cfg: CDLConfig) -> None:
-    # Save location
-    os.makedirs(cfg.save_dir, exist_ok=True)
-    filename = f"CDL-{cfg.cdl_model}_rx{cfg.num_rx}_tx{cfg.num_tx}_{cfg.save_tag}.h5"
+    cfg = OmegaConf.to_object(cfg)
+    os.makedirs(cfg.save_path.parent, exist_ok=True)
 
     # Define the number of UT and BS antennas
     num_ut_ant = num_streams_per_tx = cfg.num_rx
@@ -170,7 +172,7 @@ def main(cfg: CDLConfig) -> None:
         ]
 
     # Save dataset to disk
-    with h5py.File(cfg.save_dir / filename, "w") as f:
+    with h5py.File(cfg.save_path, "w") as f:
         f.create_dataset("data", data=dataset)
 
     # Visualize gain matrix in the time-delay domain
