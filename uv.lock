@@ -158,15 +158,6 @@ wheels = [
 ]
 
 [[package]]
-name = "contextlib2"
-version = "21.6.0"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/c7/13/37ea7805ae3057992e96ecb1cffa2fa35c2ef4498543b846f90dd2348d8f/contextlib2-21.6.0.tar.gz", hash = "sha256:ab1e2bfe1d01d968e1b7e8d9023bc51ef3509bba217bb730cee3827e1ee82869", size = 43795, upload-time = "2021-06-27T06:54:40.841Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/76/56/6d6872f79d14c0cb02f1646cbb4592eef935857c0951a105874b7b62a0c3/contextlib2-21.6.0-py2.py3-none-any.whl", hash = "sha256:3fbdb64466afd23abaf6c977627b75b6139a5a3e8ce38405c5b413aed7a0471f", size = 13277, upload-time = "2021-06-27T06:54:20.972Z" },
-]
-
-[[package]]
 name = "contourpy"
 version = "1.3.3"
 source = { registry = "https://pypi.org/simple" }
@@ -232,6 +223,15 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/96/8e/709914eb2b5749865801041647dc7f4e6d00b549cfe88b65ca192995f07c/distlib-0.4.0.tar.gz", hash = "sha256:feec40075be03a04501a973d81f633735b4b69f98b05450592310c0f401a4e0d", size = 614605, upload-time = "2025-07-17T16:52:00.465Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/33/6b/e0547afaf41bf2c42e52430072fa5658766e3d65bd4b03a563d1b6336f57/distlib-0.4.0-py2.py3-none-any.whl", hash = "sha256:9659f7d87e46584a30b5780e43ac7a2143098441670ff0a49d5f9034c54a6c16", size = 469047, upload-time = "2025-07-17T16:51:58.613Z" },
+]
+
+[[package]]
+name = "dotmap"
+version = "1.3.30"
+source = { registry = "https://pypi.org/simple" }
+sdist = { url = "https://files.pythonhosted.org/packages/bc/68/c186606e4f2bf731abd18044ea201e70c3c244bf468f41368820d197fca5/dotmap-1.3.30.tar.gz", hash = "sha256:5821a7933f075fb47563417c0e92e0b7c031158b4c9a6a7e56163479b658b368", size = 12391, upload-time = "2022-04-06T16:26:49.211Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/4d/f9/976d6813c160d6c89196d81e9466dca1503d20e609d8751f3536daf37ec6/dotmap-1.3.30-py3-none-any.whl", hash = "sha256:bd9fa15286ea2ad899a4d1dc2445ed85a1ae884a42effb87c89a6ecce71243c6", size = 11464, upload-time = "2022-04-06T16:26:47.103Z" },
 ]
 
 [[package]]
@@ -641,6 +641,7 @@ name = "mimo"
 version = "0.1.0"
 source = { editable = "." }
 dependencies = [
+    { name = "dotmap" },
     { name = "hdf5storage" },
     { name = "hydra-core" },
     { name = "matplotlib" },
@@ -661,13 +662,14 @@ torch = [
     { name = "h5py" },
     { name = "ncsnv2" },
     { name = "numpy", version = "1.26.4", source = { registry = "https://pypi.org/simple" } },
-    { name = "score-sde-pytorch" },
+    { name = "scipy" },
     { name = "torch", version = "2.3.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-4-mimo-torch') or (sys_platform == 'linux' and extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch') or (sys_platform == 'win32' and extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch')" },
     { name = "torch", version = "2.3.1+cu121", source = { registry = "https://download.pytorch.org/whl/cu121" }, marker = "(sys_platform == 'linux' and extra == 'group-4-mimo-torch') or (sys_platform == 'win32' and extra == 'group-4-mimo-torch') or (extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch')" },
 ]
 
 [package.metadata]
 requires-dist = [
+    { name = "dotmap", specifier = "==1.3.30" },
     { name = "hdf5storage", specifier = "==0.2.2" },
     { name = "hydra-core", specifier = "==1.3.2" },
     { name = "matplotlib", specifier = "==3.10.8" },
@@ -686,7 +688,7 @@ torch = [
     { name = "h5py", specifier = "==3.15.1" },
     { name = "ncsnv2", git = "https://github.com/mariusarvinte/ncsnv2?rev=63f8c166aada6fa14d13dfc208c37ee2ec4aa703" },
     { name = "numpy", specifier = "==1.26.4" },
-    { name = "score-sde-pytorch", git = "https://github.com/mariusarvinte/score_sde_pytorch?rev=68e7ea707fe1784e412b0d909850bd61b2a4fb75" },
+    { name = "scipy", specifier = "==1.17.0" },
     { name = "torch", marker = "sys_platform != 'linux' and sys_platform != 'win32'", specifier = "<=2.10.0" },
     { name = "torch", marker = "sys_platform == 'linux' or sys_platform == 'win32'", specifier = "<=2.10.0", index = "https://download.pytorch.org/whl/cu121" },
 ]
@@ -706,18 +708,6 @@ wheels = [
     { url = "https://files.pythonhosted.org/packages/ce/c6/892fe3bc91e811b78e4f85653864f2d92541d5e5c306b0cb3c2311e9ca64/mkl-2021.4.0-py2.py3-none-win32.whl", hash = "sha256:439c640b269a5668134e3dcbcea4350459c4a8bc46469669b2d67e07e3d330e8", size = 129048357, upload-time = "2021-09-28T17:08:58.256Z" },
     { url = "https://files.pythonhosted.org/packages/fe/1c/5f6dbf18e8b73e0a5472466f0ea8d48ce9efae39bd2ff38cebf8dce61259/mkl-2021.4.0-py2.py3-none-win_amd64.whl", hash = "sha256:ceef3cafce4c009dd25f65d7ad0d833a0fbadc3d8903991ec92351fe5de1e718", size = 228499609, upload-time = "2021-09-28T17:09:19.683Z" },
 ]
-
-[[package]]
-name = "ml-collections"
-version = "0.1.1"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "absl-py" },
-    { name = "contextlib2" },
-    { name = "pyyaml" },
-    { name = "six" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/aa/ea/853aa32dfa1006d3eb43384712f35b8f2d6f0a757b8c779d40c29e3e8515/ml_collections-0.1.1.tar.gz", hash = "sha256:3fefcc72ec433aa1e5d32307a3e474bbb67f405be814ea52a2166bfc9dbe68cc", size = 77915, upload-time = "2022-01-27T12:39:20.918Z" }
 
 [[package]]
 name = "ml-dtypes"
@@ -1228,15 +1218,6 @@ wheels = [
 ]
 
 [[package]]
-name = "score-sde-pytorch"
-version = "1.0"
-source = { git = "https://github.com/mariusarvinte/score_sde_pytorch?rev=68e7ea707fe1784e412b0d909850bd61b2a4fb75#68e7ea707fe1784e412b0d909850bd61b2a4fb75" }
-dependencies = [
-    { name = "ml-collections" },
-    { name = "torchdiffeq" },
-]
-
-[[package]]
 name = "setuptools"
 version = "80.10.2"
 source = { registry = "https://pypi.org/simple" }
@@ -1426,20 +1407,6 @@ dependencies = [
 wheels = [
     { url = "https://download.pytorch.org/whl/cu121/torch-2.3.1%2Bcu121-cp312-cp312-linux_x86_64.whl", hash = "sha256:b3c586f4ab25e83efffccfb97079e91325329bc228166555c4bb93957753d4ea" },
     { url = "https://download.pytorch.org/whl/cu121/torch-2.3.1%2Bcu121-cp312-cp312-win_amd64.whl", hash = "sha256:065a92a5ea2c89aad2bcd93e54c85c04a65c3e4a91cec2815e22c22706ec5183" },
-]
-
-[[package]]
-name = "torchdiffeq"
-version = "0.2.3"
-source = { registry = "https://pypi.org/simple" }
-dependencies = [
-    { name = "scipy" },
-    { name = "torch", version = "2.3.1", source = { registry = "https://pypi.org/simple" }, marker = "(sys_platform != 'linux' and sys_platform != 'win32' and extra == 'group-4-mimo-torch') or (sys_platform == 'linux' and extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch') or (sys_platform == 'win32' and extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch')" },
-    { name = "torch", version = "2.3.1+cu121", source = { registry = "https://download.pytorch.org/whl/cu121" }, marker = "(sys_platform == 'linux' and extra == 'group-4-mimo-torch') or (sys_platform == 'win32' and extra == 'group-4-mimo-torch') or (extra == 'group-4-mimo-sionna' and extra == 'group-4-mimo-torch')" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/61/7e/629146662e96da319fe237920b7d928a9832cbfa06c1d7ee8cdfe53ed450/torchdiffeq-0.2.3.tar.gz", hash = "sha256:fe75f434b9090ac0c27702e02bed21472b0f87035be6581f51edc5d4013ea31a", size = 29274, upload-time = "2022-04-22T15:21:48.912Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/2c/9b/b9c3e17f261e30f630511390e0dd33fc529073f1f2db222a1f09dc49a1ae/torchdiffeq-0.2.3-py3-none-any.whl", hash = "sha256:b5b01ec1294a2d8d5f77e567bf17c5de1237c0573cb94deefa88326f0e18c338", size = 31200, upload-time = "2022-04-22T15:21:47.366Z" },
 ]
 
 [[package]]

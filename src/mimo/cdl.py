@@ -18,8 +18,6 @@ from sionna.phy.ofdm import ResourceGrid
 from sionna.phy.channel.tr38901 import AntennaArray, CDL
 from sionna.phy.channel import subcarrier_frequencies, cir_to_ofdm_channel
 
-from plots import plot_cdfs
-
 
 @dataclass
 class CDLConfig:
@@ -28,7 +26,6 @@ class CDLConfig:
     channel: ChannelConfig = field(default_factory=ChannelConfig)
     num_samples: int = 1000
 
-    verbose: bool = False
     max_chunk_product: int = 10000
 
     def __post_init__(self):
@@ -139,16 +136,6 @@ are larger than the chunk size, which may lead to OOM errors!"
         f.create_dataset("cdl_model", data=cfg.channel.cdl_model)
         f.create_dataset("num_rx", data=cfg.channel.num_rx)
         f.create_dataset("num_tx", data=cfg.channel.num_rx)
-
-    # Plot generated data compared to reference data
-    if cfg.verbose:
-        ref_path = (
-            Path("../") / "score-based-channels/data/CDL-C_Nt64_Nr16_ULA0.50_seed1234.mat"
-        )
-        repro_path = cfg.save_path
-        plot_cdfs(
-            [ref_path, repro_path], labels=["Original", "Reproduced"], uses_hdf5=[True, False]
-        )
 
 
 if __name__ == "__main__":
