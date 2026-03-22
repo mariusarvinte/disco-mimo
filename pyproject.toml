@@ -17,8 +17,10 @@ dev = [
 torch = [
     "diffusers[torch]==0.36.0",
     "h5py==3.15.1",
-    "numpy==2.4.2",
-    "torch==2.10.0",
+    "ncsnv2",
+    "numpy==1.26.4",
+    "score-sde-pytorch",
+    "torch<=2.10.0",
 ]
 
 sionna = [
@@ -36,12 +38,14 @@ conflicts = [
 
 [tool.uv.sources]
 torch = [
-  { index = "pytorch-cu128", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
+  { index = "pytorch-cu121", marker = "sys_platform == 'linux' or sys_platform == 'win32'" },
 ]
+score-sde-pytorch = { git = "https://github.com/mariusarvinte/score_sde_pytorch", rev="68e7ea707fe1784e412b0d909850bd61b2a4fb75" }
+ncsnv2 = { git = "https://github.com/mariusarvinte/ncsnv2", rev="63f8c166aada6fa14d13dfc208c37ee2ec4aa703" }
 
 [[tool.uv.index]]
-name = "pytorch-cu128"
-url = "https://download.pytorch.org/whl/cu128"
+name = "pytorch-cu121"
+url = "https://download.pytorch.org/whl/cu121"
 explicit = true
 
 [tool.ruff]

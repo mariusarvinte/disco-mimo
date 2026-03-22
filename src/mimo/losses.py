@@ -1,8 +1,9 @@
+import numpy as np
 import torch
 
 
 def add_noise_to_data(data: torch.Tensor, stddev: torch.Tensor) -> torch.Tensor:
-    noise = stddev[..., None, None] * torch.randn_like(data)
+    noise = np.sqrt(2) * stddev[..., None, None] * torch.randn_like(data)
     noisy_data = data + noise
 
     return noisy_data, noise
@@ -26,7 +27,7 @@ def score_training_loss(
     """
 
     loss = model_pred + noise / coefficient[..., None, None]
-    loss = torch.linalg.norm(loss, axis=(-1, -2)).square()
+    loss = 1 / 2.0 * torch.linalg.norm(loss, axis=(-1, -2)).square()
     weighted_loss = coefficient * loss
     average_loss = torch.mean(weighted_loss)
 
