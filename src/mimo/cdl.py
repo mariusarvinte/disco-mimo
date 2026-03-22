@@ -1,6 +1,6 @@
 import os
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 
 import h5py
@@ -13,6 +13,8 @@ import hydra
 from hydra.core.config_store import ConfigStore
 from omegaconf import MISSING, OmegaConf
 
+from mimo.utils import ChannelConfig
+
 from sionna.phy.ofdm import ResourceGrid
 from sionna.phy.channel.tr38901 import AntennaArray, CDL
 from sionna.phy.channel import subcarrier_frequencies, cir_to_ofdm_channel
@@ -22,10 +24,7 @@ from sionna.phy.channel import subcarrier_frequencies, cir_to_ofdm_channel
 class CDLConfig:
     save_path: Path = MISSING
 
-    cdl_model: str = "C"
-    num_rx: int = 16
-    num_tx: int = 64
-
+    channel: ChannelConfig = field(default_factory=ChannelConfig)
     num_samples: int = 1000
 
     verbose: bool = False
@@ -93,8 +92,8 @@ def main(cfg: CDLConfig) -> None:
     os.makedirs(cfg.save_path.parent, exist_ok=True)
 
     # Define the number of UT and BS antennas
-    num_ut_ant = num_streams_per_tx = cfg.num_rx
-    num_bs_ant = cfg.num_tx
+    num_ut_ant = num_streams_per_tx = cfg.channel.num_rx
+    num_bs_ant = cfg.channel.num_tx
     rg = ResourceGrid(
         num_ofdm_symbols=14,
         fft_size=76,
@@ -129,7 +128,7 @@ def main(cfg: CDLConfig) -> None:
     delay_spread = 30e-9  # Nominal delay spread in [s]. Please see the CDL documentation
     # about how to choose this value.
     direction = "downlink"
-    cdl_model = cfg.cdl_model
+    cdl_model = cfg.channel.cdl_model
     speed = 0  # UT speed [m/s]
 
     # Configure a channel impulse reponse (CIR) generator for the CDL model.
@@ -145,10 +144,13 @@ def main(cfg: CDLConfig) -> None:
     )
 
     # Chunk the channel generation process
-    dataset = np.zeros((cfg.num_samples, cfg.num_rx, cfg.num_tx), dtype=np.complex128)
-    if (size_prod := cfg.num_rx * cfg.num_tx) > cfg.max_chunk_product:
+    dataset = np.zeros(
+        (cfg.num_samples, cfg.channel.num_rx, cfg.channel.num_tx), dtype=np.complex128
+    )
+    if (size_prod := cfg.channel.num_rx * cfg.channel.num_tx) > cfg.max_chunk_product:
         print(
-            f"Warning: the array sizes {cfg.num_rx, cfg.num_tx = } are larger than the chunk size, which may lead to OOM errors!"
+            f"Warning: the array sizes {cfg.channel.num_rx, cfg.channel.num_tx = } \
+are larger than the chunk size, which may lead to OOM errors!"
         )
     chunk_size = cfg.max_chunk_product // size_prod
     num_chunks = int(np.ceil(cfg.num_samples / chunk_size))
@@ -174,6 +176,9 @@ def main(cfg: CDLConfig) -> None:
     # Save dataset to disk
     with h5py.File(cfg.save_path, "w") as f:
         f.create_dataset("data", data=dataset)
+        f.create_dataset("cdl_model", data=cfg.channel.cdl_model)
+        f.create_dataset("num_rx", data=cfg.channel.num_rx)
+        f.create_dataset("num_tx", data=cfg.channel.num_rx)
 
     # Visualize gain matrix in the time-delay domain
     if cfg.verbose:
