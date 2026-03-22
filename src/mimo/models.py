@@ -4,14 +4,16 @@ from pathlib import Path
 
 import torch
 from diffusers import UNet2DModel
+from omegaconf import MISSING
 
-# from score_sde_pytorch.models.ncsnv2 import NCSNv2
 from ncsnv2.models.ncsnv2 import NCSNv2Deepest
 
 
 @dataclass
 class UNetConfig:
-    num_channels: int = 2
+    channels: int = MISSING
+    noise_levels: torch.Tensor = MISSING
+    sample_size: tuple[int] = MISSING
 
     block_out_channels: tuple[int] = (16, 32, 48, 64)
     norm_num_groups: int = 16
@@ -22,14 +24,14 @@ class UNetConfig:
 class NCSNv2Config:
     @dataclass
     class Model:
+        num_classes: int = MISSING
+        sigma_begin: float = MISSING
+        sigma_rate: float = MISSING
+        sigma_dist: str = MISSING
+
         ngf: int = 32
-        num_classes: int = 2311
         normalization: str = "InstanceNorm++"
         nonlinearity: str = "relu"
-        sigma_dist: str = "geometric"
-
-        sigma_begin: float = 39.15
-        sigma_rate: float = 0.995
 
     @dataclass
     class Data:
@@ -47,26 +49,8 @@ class NCSNv2Config:
         )
 
 
-@dataclass
-class ModelConfig:
-    device: str = "cuda"
-    arch: str = "ncsnv2"
-    config: UNetConfig | NCSNv2Config | None = None
-
-    filename: Path | None = None
-
-    def __post_init__(self):
-        match self.arch:
-            case "unet2d-diffusers":
-                self.config = UNetConfig()
-            case "ncsnv2":
-                self.config = NCSNv2Config()
-            case _:
-                raise ValueError("Invalid model architecture!")
-
-
 class UNet2DModelNCSN(UNet2DModel):
-    def __init__(self, noise_levels, *args, **kwargs):
+    def __init__(self, noise_levels: torch.Tensor, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self.noise_levels = noise_levels
 
@@ -87,28 +71,39 @@ class UNet2DModelNCSN(UNet2DModel):
 
 
 def get_model(
-    cfg_model: ModelConfig,
-    noise_levels: torch.Tensor,
-) -> UNet2DModel:
-    match cfg_model.arch:
+    arch: str,
+    config: UNetConfig | NCSNv2Config,
+    filename: Path,
+) -> torch.nn.Module:
+    match arch:
         case "unet2d-diffusers":
-            model = UNet2DModelNCSN(
-                noise_levels=noise_levels,
-                sample_size=cfg_model.sample_size,
-                in_channels=cfg_model.num_channels,
-                out_channels=cfg_model.num_channels,
-                block_out_channels=cfg_model.block_out_channels,
-                layers_per_block=cfg_model.layers_per_block,
-                norm_num_groups=cfg_model.norm_num_groups,
-            )
+            model = get_diffusers_model(config)
         case "ncsnv2":
-            model = NCSNv2Deepest(cfg_model.config)
+            model = get_ncsnv2_model(config)
         case _:
             raise ValueError("Invalid model architecture!")
 
     # Load pretrained model state if specified
-    if cfg_model.filename:
-        contents = torch.load(cfg_model.filename, map_location="cpu")
+    if filename:
+        contents = torch.load(filename, map_location="cpu")
         model.load_state_dict(contents["model_state_dict"], strict=True)
 
+    return model
+
+
+def get_diffusers_model(cfg: UNetConfig) -> UNet2DModelNCSN:
+    model = UNet2DModelNCSN(
+        noise_levels=cfg.noise_levels,
+        sample_size=cfg.sample_size,
+        in_channels=cfg.channels,
+        out_channels=cfg.channels,
+        block_out_channels=cfg.block_out_channels,
+        layers_per_block=cfg.layers_per_block,
+        norm_num_groups=cfg.norm_num_groups,
+    )
+    return model
+
+
+def get_ncsnv2_model(cfg: NCSNv2Config) -> NCSNv2Deepest:
+    model = NCSNv2Deepest(cfg)
     return model
