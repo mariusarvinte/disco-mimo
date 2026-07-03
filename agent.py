@@ -4,9 +4,12 @@ from pathlib import Path
 from pydantic_ai import Agent
 from pydantic_ai.capabilities import NodeResult
 
-user_prompt = f"""
+user_prompt = """
 Analyze the contents of the 'src' folder and read all files in it.
-Respond with the contents of the file that trains a deep learning model.
+Identify the file responsible for training a deep learning model.
+Identiy two possible optimizations that could be applied to the
+training code to make it faster without sacrificing numerical precision or performance.
+Write them to 'PLAN.md'.
 """.strip()
 
 
@@ -42,6 +45,21 @@ def read_file(path: Path) -> str:
         return "You attempted to read a non-existent file!"
 
     return path.read_text()
+
+
+@agent.tool_plain
+def write_plan(path: Path, contents: str) -> str:
+    """Write a plan to an .md file"""
+
+    # Verify if the to-be-written file is an .md file that doesn't already exist
+    if path.is_file():
+        return "File already exists!"
+
+    if path != "PLAN.md":
+        return "You can only write to the PLAN.md file!"
+
+    path.write_text(contents)
+    return "File was written successfully"
 
 
 async def main():
