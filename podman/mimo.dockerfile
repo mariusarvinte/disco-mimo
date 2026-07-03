@@ -19,11 +19,11 @@ ENV PATH="/home/user/.local/bin:$PATH"
 # Install dependencies only
 RUN --mount=type=bind,source=pyproject.toml,target=pyproject.toml \
     --mount=type=bind,source=uv.lock,target=uv.lock \
-    uv sync --frozen --no-install-project --group torch
+    uv sync --frozen --no-install-project --group torch --group agent
 
 # Copy application code with matching user ownership
 COPY --chown=user:user src/ /home/user/disco-mimo/src
 COPY --chown=user:user pyproject.toml uv.lock README.md /home/user/disco-mimo/
 
 # Sync the project itself
-RUN uv sync --frozen --group torch
+RUN uv sync --frozen --group torch --group agent

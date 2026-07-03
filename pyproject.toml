@@ -33,6 +33,10 @@ sionna = [
     "sionna-no-rt==1.2.1",
 ]
 
+agent = [
+    "pydantic-ai==2.4.0",
+]
+
 [tool.uv]
 conflicts = [
     [
