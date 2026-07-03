@@ -19,6 +19,11 @@ agent = Agent(
 def list_files(path: Path) -> str:
     """Returns a list of all files in a directory.
     The 'path' argument must be a directory."""
+
+    # Verify if the directory exists
+    if not path.is_dir():
+        return "You attempted to read a non-existent folder or a file instead of a folder!"
+
     files = [
         str(file)
         for file in path.rglob("*")
